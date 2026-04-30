@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# BMad personal customization (gitignored per CLAUDE.md)
+_bmad/custom/config.user.toml
+
+# Logs
+*.log
+logs/
+
+# Secrets
+*.pem
+*.key
+credentials.json
+secrets/
