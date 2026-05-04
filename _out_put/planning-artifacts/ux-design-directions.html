@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TableProject — Design Direction</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #FAFAFA; --surface: #FFFFFF; --surface-elevated: #FFFFFF;
+    --surface-hover: #F4F4F5; --surface-active: #E4E4E7;
+    --border: #E4E4E7; --border-subtle: #F0F0F2;
+    --text-primary: #09090B; --text-secondary: #3F3F46; --text-muted: #71717A;
+    --text-faint: #A1A1AA;
+    --accent: #18181B; --accent-hover: #27272A; --accent-subtle: #F4F4F5;
+    --accent-muted: #E4E4E7;
+    --success: #16A34A; --success-subtle: #F0FDF4;
+    --warning: #CA8A04; --warning-subtle: #FEFCE8;
+    --error: #DC2626; --error-subtle: #FEF2F2;
+    --info: #2563EB; --info-subtle: #EFF6FF;
+    --radius-sm: 6px; --radius-md: 10px; --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.03);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.1);
+    --transition: 0.15s ease;
+    --font-sans: 'Inter', 'Noto Sans JP', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-jp: 'Noto Sans JP', 'Hiragino Sans', sans-serif;
+    --sidebar-w: 240px;
+    --topbar-h: 48px;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: #111; color: var(--text-primary);
+    line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== SHOWCASE SHELL ===== */
+  .showcase-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    background: rgba(9,9,11,0.94); backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    height: 52px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 28px;
+  }
+  .showcase-nav .brand {
+    font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.4);
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .showcase-tabs { display: flex; gap: 2px; }
+  .showcase-tab {
+    padding: 7px 14px; border-radius: 8px; border: none; cursor: pointer;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+    background: transparent; color: rgba(255,255,255,0.35);
+    transition: all var(--transition);
+  }
+  .showcase-tab:hover { color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.05); }
+  .showcase-tab.active { color: #fff; background: rgba(255,255,255,0.1); }
+
+  .screen { display: none; padding-top: 52px; min-height: 100vh; }
+  .screen.active { display: block; }
+
+  .screen-header {
+    padding: 48px 40px 12px; max-width: 1100px; margin: 0 auto;
+  }
+  .screen-header .label {
+    font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.25);
+    text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;
+  }
+  .screen-header h2 { font-size: 22px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+  .screen-header p { font-size: 14px; color: rgba(255,255,255,0.35); max-width: 560px; }
+
+  .mockup-wrap {
+    max-width: 1100px; margin: 24px auto 56px; padding: 0 40px;
+  }
+
+  /* ===== APP FRAME ===== */
+  .app-frame {
+    background: var(--bg); border-radius: 12px; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  /* ===== TOPBAR — dark ===== */
+  .topbar {
+    height: var(--topbar-h); display: flex; align-items: center;
+    padding: 0 16px; gap: 12px;
+    background: #18181B; border-bottom: 1px solid #27272A;
+  }
+  .topbar .sidebar-toggle {
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    border: none; background: transparent; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #71717A; transition: all var(--transition);
+  }
+  .topbar .sidebar-toggle:hover { background: #27272A; color: #A1A1AA; }
+  .topbar .sidebar-toggle svg { width: 16px; height: 16px; }
+  .topbar .breadcrumb {
+    font-size: 13px; color: #71717A; display: flex;
+    align-items: center; gap: 5px; flex: 1;
+  }
+  .topbar .breadcrumb .sep { color: #3F3F46; font-size: 11px; }
+  .topbar .breadcrumb .current { color: #E4E4E7; font-weight: 500; }
+  .topbar .search-trigger {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 10px; border-radius: var(--radius-sm);
+    border: 1px solid #3F3F46; background: #27272A;
+    cursor: pointer; transition: all var(--transition);
+    font-size: 13px; color: #71717A;
+  }
+  .topbar .search-trigger:hover { border-color: #52525B; }
+  .topbar .search-trigger kbd {
+    font-family: var(--font-sans); font-size: 11px; font-weight: 500;
+    color: #71717A; background: #3F3F46;
+    border: 1px solid #52525B; border-radius: 4px;
+    padding: 1px 5px; line-height: 1.4;
+  }
+  .topbar .user-avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #3F3F46;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #E4E4E7;
+  }
+
+  /* ===== LAYOUT ===== */
+  .app-body { display: flex; min-height: 560px; }
+
+  /* ===== SIDEBAR — dark ===== */
+  .sidebar {
+    width: var(--sidebar-w); border-right: 1px solid #27272A;
+    padding: 12px 8px; background: #18181B;
+    display: flex; flex-direction: column;
+  }
+  .sidebar-section {
+    font-size: 11px; font-weight: 600; color: #52525B;
+    padding: 16px 12px 6px; letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .sidebar-section:first-child { padding-top: 4px; }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 12px; border-radius: var(--radius-sm);
+    font-size: 14px; color: #A1A1AA;
+    cursor: pointer; transition: all var(--transition);
+    position: relative;
+  }
+  .sidebar-item:hover { background: #27272A; color: #E4E4E7; }
+  .sidebar-item.active {
+    background: #27272A; color: #FAFAFA; font-weight: 500;
+  }
+  .sidebar-item .icon {
+    width: 20px; height: 20px; display: flex; align-items: center;
+    justify-content: center; font-size: 15px; flex-shrink: 0;
+  }
+  .sidebar-badge {
+    margin-left: auto; font-size: 11px; font-weight: 600;
+    color: #FAFAFA; background: #3F3F46;
+    padding: 1px 7px; border-radius: 10px;
+  }
+  .sidebar-spacer { flex: 1; }
+
+  /* ===== MAIN CONTENT — white ===== */
+  .main-content {
+    flex: 1; padding: 36px 56px; max-width: 760px;
+    overflow-y: auto; background: var(--bg);
+  }
+
+  /* ===== PAGE HEADER ===== */
+  .page-header { margin-bottom: 28px; }
+  .page-header .page-title {
+    font-size: 28px; font-weight: 700; color: var(--text-primary);
+    line-height: 1.25; letter-spacing: -0.3px;
+  }
+  .page-header .page-subtitle {
+    font-size: 14px; color: var(--text-muted); margin-top: 4px;
+  }
+
+  /* ===== INLINE STATS ROW ===== */
+  .stats-row {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .stat-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px; background: var(--surface-hover);
+    border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .stat-chip .val { font-weight: 600; color: var(--text-primary); }
+  .stat-chip .delta { font-weight: 500; }
+  .stat-chip .delta.up { color: var(--success); }
+
+  /* ===== DIVIDER ===== */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* ===== REVIEW CARD ===== */
+  .review-card {
+    background: #F4F4F5; border: 1px solid #E4E4E7;
+    border-radius: var(--radius-lg); padding: 44px 40px;
+    text-align: center; position: relative;
+    transition: all var(--transition);
+    cursor: pointer;
+  }
+  .review-card:hover { border-color: #D4D4D8; box-shadow: var(--shadow-sm); }
+  .review-card .lang-indicator {
+    position: absolute; top: 16px; left: 20px;
+    font-size: 11px; font-weight: 600; color: var(--text-faint);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .review-card .card-counter {
+    position: absolute; top: 16px; right: 20px;
+    font-size: 12px; color: var(--text-faint);
+  }
+  .review-card .term-main {
+    font-size: 28px; font-weight: 600; color: var(--text-primary);
+    letter-spacing: -0.3px;
+  }
+  .review-card .term-jp {
+    font-size: 18px; color: var(--text-secondary);
+    font-family: var(--font-jp); margin-top: 6px;
+  }
+  .review-card .term-pos {
+    font-size: 13px; color: var(--text-muted); margin-top: 8px;
+  }
+  .review-card .reveal-prompt {
+    margin-top: 32px; padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-size: 13px; color: var(--text-muted);
+  }
+  .review-card .reveal-prompt kbd {
+    font-family: var(--font-sans); font-size: 12px; font-weight: 500;
+    background: #27272A; border: 1px solid #3F3F46;
+    border-radius: 5px; padding: 2px 8px; margin: 0 2px;
+    color: #E4E4E7;
+  }
+
+  /* ===== REVEALED STATE ===== */
+  .review-card .revealed-content { display: none; }
+  .review-card.revealed .unrevealed-content { display: none; }
+  .review-card.revealed .revealed-content { display: block; }
+
+  .revealed-content .ipa {
+    font-family: var(--font-mono); font-size: 14px;
+    color: var(--text-muted); margin-top: 10px;
+  }
+  .revealed-content .definition {
+    font-size: 16px; color: var(--text-primary); line-height: 1.65;
+    margin-top: 20px; text-align: left; padding: 0 8px;
+  }
+  .revealed-content .example {
+    font-size: 14px; color: var(--text-secondary); font-style: italic;
+    margin-top: 14px; padding: 14px 18px; background: #F4F4F5;
+    border-radius: var(--radius-md); text-align: left; line-height: 1.6;
+    border-left: 3px solid #D4D4D8;
+  }
+  .revealed-content .parallel-toggle {
+    margin-top: 14px; font-size: 12px; color: var(--text-secondary);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+    font-weight: 500;
+  }
+  .revealed-content .parallel-toggle:hover { color: var(--text-primary); }
+
+  /* ===== RATING BUTTONS — dark buttons on white bg ===== */
+  .rating-row {
+    display: flex; gap: 8px; justify-content: center;
+    margin-top: 28px; padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .rating-btn {
+    flex: 1; max-width: 120px; padding: 10px 8px;
+    border-radius: var(--radius-md); border: 1px solid #D4D4D8;
+    background: var(--surface); cursor: pointer;
+    font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+    color: var(--text-secondary); transition: all var(--transition);
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .rating-btn .key {
+    font-size: 11px; font-weight: 600; color: #FAFAFA;
+    width: 20px; height: 20px; display: flex; align-items: center;
+    justify-content: center; background: #3F3F46;
+    border-radius: 4px; margin-bottom: 2px;
+  }
+  .rating-btn .interval {
+    font-size: 11px; color: var(--text-muted); font-weight: 400;
+  }
+  .rating-btn:hover { border-color: #A1A1AA; }
+  .rating-btn.again:hover { background: var(--error-subtle); border-color: #FCA5A5; color: var(--error); }
+  .rating-btn.hard:hover { background: var(--warning-subtle); border-color: #FDE68A; color: var(--warning); }
+  .rating-btn.good:hover { background: var(--success-subtle); border-color: #86EFAC; color: var(--success); }
+  .rating-btn.easy:hover { background: #F4F4F5; border-color: #71717A; color: #18181B; }
+
+  /* ===== INSIGHT CARD — dark bg ===== */
+  .insight-card {
+    background: #18181B; border: 1px solid #27272A;
+    border-radius: var(--radius-md); padding: 14px 18px;
+    margin-top: 20px; display: flex; gap: 12px; align-items: flex-start;
+  }
+  .insight-card .insight-icon {
+    width: 32px; height: 32px; border-radius: var(--radius-sm);
+    background: #27272A; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; flex-shrink: 0;
+  }
+  .insight-card .insight-body { flex: 1; }
+  .insight-card .insight-label {
+    font-size: 11px; font-weight: 600; color: #A1A1AA;
+    text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 3px;
+  }
+  .insight-card .insight-text {
+    font-size: 13px; color: #D4D4D8; line-height: 1.55;
+  }
+  .insight-card .insight-text strong { color: #FAFAFA; }
+
+  /* ===== SESSION SUMMARY ===== */
+  .summary-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    margin-bottom: 24px;
+  }
+  .summary-stat {
+    padding: 14px 16px; background: #F4F4F5;
+    border-radius: var(--radius-md); border: 1px solid #E4E4E7;
+  }
+  .summary-stat .stat-label {
+    font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.3px; margin-bottom: 4px;
+  }
+  .summary-stat .stat-value {
+    font-size: 22px; font-weight: 700; color: var(--text-primary);
+  }
+  .summary-stat .stat-sub { font-size: 12px; color: var(--success); margin-top: 2px; }
+  .summary-items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .summary-item {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; color: var(--text-secondary);
+  }
+  .summary-item .dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  }
+  .summary-item .dot.green { background: var(--success); }
+  .summary-item .dot.blue { background: var(--info); }
+  .summary-item .dot.amber { background: var(--warning); }
+  .summary-actions { display: flex; gap: 10px; }
+  .btn {
+    padding: 9px 18px; border-radius: var(--radius-md);
+    font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all var(--transition); border: none;
+  }
+  .btn-primary { background: #18181B; color: #FAFAFA; }
+  .btn-primary:hover { background: #27272A; }
+  .btn-secondary {
+    background: var(--surface); color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--surface-hover); color: var(--text-primary); }
+
+  /* ===== DASHBOARD ===== */
+  .dashboard-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+    margin-bottom: 24px;
+  }
+  .dash-card {
+    background: #F4F4F5; border: 1px solid #E4E4E7;
+    border-radius: var(--radius-md); padding: 18px 20px;
+  }
+  .dash-card .dash-label {
+    font-size: 12px; color: var(--text-muted); margin-bottom: 6px;
+  }
+  .dash-card .dash-value {
+    font-size: 28px; font-weight: 700; color: var(--text-primary);
+    letter-spacing: -0.5px;
+  }
+  .dash-card .dash-delta {
+    font-size: 12px; margin-top: 4px; font-weight: 500;
+  }
+  .dash-card .dash-delta.up { color: var(--success); }
+  .dash-wide {
+    background: #F4F4F5; border: 1px solid #E4E4E7;
+    border-radius: var(--radius-md); padding: 20px 24px;
+    margin-bottom: 14px;
+  }
+  .dash-wide .dash-label {
+    font-size: 12px; color: var(--text-muted); margin-bottom: 14px;
+  }
+  .retention-chart {
+    display: flex; align-items: flex-end; gap: 3px; height: 80px;
+  }
+  .retention-bar {
+    flex: 1; border-radius: 3px 3px 0 0; transition: all 0.2s;
+    position: relative;
+  }
+  .retention-bar.filled { background: #3F3F46; }
+  .retention-bar.filled:hover { background: #52525B; }
+  .retention-bar.empty { background: #F4F4F5; }
+  .retention-bar.today { background: #18181B; }
+  .chart-labels {
+    display: flex; gap: 3px; margin-top: 6px;
+  }
+  .chart-labels span {
+    flex: 1; text-align: center; font-size: 10px; color: var(--text-muted);
+  }
+
+  /* Diagnostic list */
+  .diagnostic-list { display: flex; flex-direction: column; gap: 10px; }
+  .diagnostic-item {
+    display: flex; gap: 14px; padding: 14px 18px;
+    background: #F4F4F5; border: 1px solid #E4E4E7;
+    border-radius: var(--radius-md); align-items: flex-start;
+  }
+  .diagnostic-item .d-icon {
+    width: 36px; height: 36px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .diagnostic-item .d-icon.warn { background: var(--warning-subtle); }
+  .diagnostic-item .d-icon.info { background: var(--info-subtle); }
+  .diagnostic-item .d-icon.success { background: var(--success-subtle); }
+  .diagnostic-item .d-title {
+    font-size: 14px; font-weight: 500; color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+  .diagnostic-item .d-desc {
+    font-size: 13px; color: var(--text-secondary); line-height: 1.5;
+  }
+
+  /* ===== COLLECTIONS ===== */
+  .collections-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  }
+  .collection-card {
+    background: #F4F4F5; border: 1px solid #E4E4E7;
+    border-radius: var(--radius-md); padding: 20px;
+    cursor: pointer; transition: all var(--transition);
+  }
+  .collection-card:hover { border-color: #A1A1AA; box-shadow: var(--shadow-sm); }
+  .collection-card .c-icon { font-size: 24px; margin-bottom: 10px; }
+  .collection-card .c-name {
+    font-size: 15px; font-weight: 600; color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .collection-card .c-meta {
+    font-size: 13px; color: var(--text-muted);
+  }
+  .collection-card .c-progress {
+    margin-top: 12px; height: 4px; background: var(--surface-hover);
+    border-radius: 2px; overflow: hidden;
+  }
+  .collection-card .c-progress-fill {
+    height: 100%; border-radius: 2px; background: #3F3F46;
+  }
+
+  /* ===== ONBOARDING ===== */
+  .onboarding-overlay {
+    position: absolute; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .onboarding-box {
+    max-width: 440px; width: 100%; text-align: center;
+    padding: 48px 40px;
+  }
+  .onboarding-box .ob-icon { font-size: 40px; margin-bottom: 16px; }
+  .onboarding-box .ob-title {
+    font-size: 24px; font-weight: 700; color: var(--text-primary);
+    margin-bottom: 8px; letter-spacing: -0.3px;
+  }
+  .onboarding-box .ob-desc {
+    font-size: 15px; color: var(--text-secondary); margin-bottom: 32px;
+    line-height: 1.6;
+  }
+  .onboarding-box .ob-step-indicator {
+    display: flex; gap: 6px; justify-content: center; margin-bottom: 28px;
+  }
+  .ob-step-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #D4D4D8; transition: all var(--transition);
+  }
+  .ob-step-dot.active { background: #18181B; width: 24px; border-radius: 4px; }
+  .ob-step-dot.done { background: #18181B; }
+  .ob-question {
+    font-size: 16px; font-weight: 500; color: var(--text-primary);
+    margin-bottom: 16px; text-align: left;
+  }
+  .ob-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .ob-option {
+    padding: 12px 16px; border: 1px solid var(--border);
+    border-radius: var(--radius-md); text-align: left;
+    font-size: 14px; color: var(--text-secondary); cursor: pointer;
+    transition: all var(--transition); background: var(--surface);
+  }
+  .ob-option:hover { border-color: #71717A; color: var(--text-primary); }
+  .ob-option.selected {
+    border-color: #18181B; background: #18181B; color: #FAFAFA; font-weight: 500;
+    border-width: 2px;
+  }
+
+  /* ===== RIGHT PANEL ===== */
+  .right-panel {
+    width: 280px; border-left: 1px solid var(--border);
+    padding: 20px 16px; background: var(--surface);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+</style>
+</head>
+<body>
+
+<nav class="showcase-nav">
+  <span class="brand">TableProject Design</span>
+  <div class="showcase-tabs">
+    <button class="showcase-tab active" onclick="show('review')">Review Flow</button>
+    <button class="showcase-tab" onclick="show('revealed')">Card Revealed</button>
+    <button class="showcase-tab" onclick="show('summary')">Session Summary</button>
+    <button class="showcase-tab" onclick="show('dashboard')">Dashboard</button>
+    <button class="showcase-tab" onclick="show('collections')">Collections</button>
+    <button class="showcase-tab" onclick="show('onboarding')">Onboarding</button>
+  </div>
+</nav>
+
+<!-- ==================== REVIEW FLOW ==================== -->
+<section class="screen active" id="review">
+  <div class="screen-header">
+    <div class="label">Screen 1 of 6</div>
+    <h2>Review Flow — Card Front</h2>
+    <p>The daily experience. Queue is the landing page. Card centered, minimal chrome. Click the card to see the revealed state.</p>
+  </div>
+  <div class="mockup-wrap">
+    <div class="app-frame">
+      <div class="topbar">
+        <button class="sidebar-toggle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
+        <div class="breadcrumb">
+          <span>TableProject</span>
+          <span class="sep">/</span>
+          <span class="current">Today's Queue</span>
+        </div>
+        <div class="search-trigger">
+          <span>Search...</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="user-avatar">L</div>
+      </div>
+      <div class="app-body">
+        <div class="sidebar">
+          <div class="sidebar-section">Learning</div>
+          <div class="sidebar-item active">
+            <span class="icon">📚</span> Today's Queue
+            <span class="sidebar-badge">24</span>
+          </div>
+          <div class="sidebar-item"><span class="icon">📁</span> Collections</div>
+          <div class="sidebar-item"><span class="icon">➕</span> Add Words</div>
+          <div class="sidebar-section">Insights</div>
+          <div class="sidebar-item"><span class="icon">📊</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔍</span> Diagnostics</div>
+          <div class="sidebar-spacer"></div>
+          <div class="sidebar-item"><span class="icon">⚙️</span> Settings</div>
+        </div>
+        <div class="main-content">
+          <div class="page-header">
+            <div class="page-title">Today's Queue</div>
+            <div class="page-subtitle">24 cards ready · ~4 min estimated</div>
+          </div>
+          <div class="stats-row">
+            <span class="stat-chip"><span class="val">87%</span> retention</span>
+            <span class="stat-chip"><span class="val">142</span> mastered</span>
+            <span class="stat-chip"><span class="val delta up">+12</span> this week</span>
+          </div>
+          <div class="divider"></div>
+          <div class="review-card" onclick="show('revealed')">
+            <span class="lang-indicator">English</span>
+            <span class="card-counter">1 / 24</span>
+            <div class="unrevealed-content">
+              <div class="term-main">protocol</div>
+              <div class="term-jp">プロトコル</div>
+              <div class="term-pos">noun · IT · B2</div>
+              <div class="reveal-prompt">
+                Press <kbd>Space</kbd> to reveal answer
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CARD REVEALED ==================== -->
+<section class="screen" id="revealed">
+  <div class="screen-header">
+    <div class="label">Screen 2 of 6</div>
+    <h2>Review Flow — Card Revealed</h2>
+    <p>After pressing Space. Definition, IPA, example sentence visible. Four rating buttons with keyboard shortcuts and next-review intervals.</p>
+  </div>
+  <div class="mockup-wrap">
+    <div class="app-frame">
+      <div class="topbar">
+        <button class="sidebar-toggle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
+        <div class="breadcrumb">
+          <span>TableProject</span>
+          <span class="sep">/</span>
+          <span class="current">Reviewing · 5 / 24</span>
+        </div>
+        <div class="search-trigger">
+          <span>Search...</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="user-avatar">L</div>
+      </div>
+      <div class="app-body">
+        <div class="sidebar">
+          <div class="sidebar-section">Learning</div>
+          <div class="sidebar-item active">
+            <span class="icon">📚</span> Today's Queue
+            <span class="sidebar-badge">19</span>
+          </div>
+          <div class="sidebar-item"><span class="icon">📁</span> Collections</div>
+          <div class="sidebar-item"><span class="icon">➕</span> Add Words</div>
+          <div class="sidebar-section">Insights</div>
+          <div class="sidebar-item"><span class="icon">📊</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔍</span> Diagnostics</div>
+          <div class="sidebar-spacer"></div>
+          <div class="sidebar-item"><span class="icon">⚙️</span> Settings</div>
+        </div>
+        <div class="main-content">
+          <div class="review-card revealed" style="cursor:default">
+            <span class="lang-indicator">English</span>
+            <span class="card-counter">5 / 24</span>
+            <div class="revealed-content">
+              <div class="term-main">authentication</div>
+              <div class="ipa">/ɔːˌθen.tɪˈkeɪ.ʃən/</div>
+              <div class="definition">
+                The process of verifying the identity of a user, device, or system. In IT, typically involves credentials (username/password), tokens, or biometric data to confirm that an entity is who it claims to be.
+              </div>
+              <div class="example">
+                "We implemented two-factor authentication to strengthen the login security of our API endpoints."
+              </div>
+              <div class="parallel-toggle">
+                <span>⇄</span> Show Japanese definition (Tab)
+              </div>
+              <div class="rating-row">
+                <button class="rating-btn again">
+                  <span class="key">1</span>
+                  Again
+                  <span class="interval">&lt; 1m</span>
+                </button>
+                <button class="rating-btn hard">
+                  <span class="key">2</span>
+                  Hard
+                  <span class="interval">6m</span>
+                </button>
+                <button class="rating-btn good">
+                  <span class="key">3</span>
+                  Good
+                  <span class="interval">1d</span>
+                </button>
+                <button class="rating-btn easy">
+                  <span class="key">4</span>
+                  Easy
+                  <span class="interval">4d</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="insight-card">
+            <div class="insight-icon">💡</div>
+            <div class="insight-body">
+              <div class="insight-label">Quick Insight</div>
+              <div class="insight-text">You've rated <strong>"authentication"</strong> as Hard 3 times this week. Consider reviewing security terms in morning sessions — your retention is 23% higher before noon.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SESSION SUMMARY ==================== -->
+<section class="screen" id="summary">
+  <div class="screen-header">
+    <div class="label">Screen 3 of 6</div>
+    <h2>Session Summary</h2>
+    <p>After completing all cards. Emphasizes deltas (what changed) over absolutes. Links to dashboard for deeper analysis.</p>
+  </div>
+  <div class="mockup-wrap">
+    <div class="app-frame">
+      <div class="topbar">
+        <button class="sidebar-toggle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
+        <div class="breadcrumb">
+          <span>TableProject</span>
+          <span class="sep">/</span>
+          <span class="current">Session Complete</span>
+        </div>
+        <div class="search-trigger">
+          <span>Search...</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="user-avatar">L</div>
+      </div>
+      <div class="app-body">
+        <div class="sidebar">
+          <div class="sidebar-section">Learning</div>
+          <div class="sidebar-item">
+            <span class="icon">📚</span> Today's Queue
+            <span class="sidebar-badge" style="background:#27272A;color:var(--success)">✓</span>
+          </div>
+          <div class="sidebar-item"><span class="icon">📁</span> Collections</div>
+          <div class="sidebar-item"><span class="icon">➕</span> Add Words</div>
+          <div class="sidebar-section">Insights</div>
+          <div class="sidebar-item"><span class="icon">📊</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔍</span> Diagnostics</div>
+          <div class="sidebar-spacer"></div>
+          <div class="sidebar-item"><span class="icon">⚙️</span> Settings</div>
+        </div>
+        <div class="main-content">
+          <div class="page-header">
+            <div class="page-title">Session Complete</div>
+            <div class="page-subtitle">24 cards reviewed in 3m 42s</div>
+          </div>
+
+          <div class="summary-stats">
+            <div class="summary-stat">
+              <div class="stat-label">Graduated</div>
+              <div class="stat-value">3</div>
+              <div class="stat-sub">→ mastered</div>
+            </div>
+            <div class="summary-stat">
+              <div class="stat-label">Accuracy</div>
+              <div class="stat-value">88%</div>
+              <div class="stat-sub">↑ 5% vs average</div>
+            </div>
+            <div class="summary-stat">
+              <div class="stat-label">Tomorrow</div>
+              <div class="stat-value">18</div>
+              <div class="stat-sub">~3 min</div>
+            </div>
+          </div>
+
+          <div class="summary-items">
+            <div class="summary-item"><span class="dot green"></span> 3 cards graduated to mastered</div>
+            <div class="summary-item"><span class="dot blue"></span> 1 new learning pattern detected</div>
+            <div class="summary-item"><span class="dot amber"></span> 2 cards need extra attention (networking terms)</div>
+          </div>
+
+          <div class="summary-actions">
+            <button class="btn btn-primary">View Dashboard</button>
+            <button class="btn btn-secondary">Add Words</button>
+            <button class="btn btn-secondary">Review Again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== DASHBOARD ==================== -->
+<section class="screen" id="dashboard">
+  <div class="screen-header">
+    <div class="label">Screen 4 of 6</div>
+    <h2>Dashboard</h2>
+    <p>The intelligence layer. Retention stats, activity chart, and diagnostic insights. Data-rich but calm through consistent spacing and muted colors.</p>
+  </div>
+  <div class="mockup-wrap">
+    <div class="app-frame">
+      <div class="topbar">
+        <button class="sidebar-toggle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
+        <div class="breadcrumb">
+          <span>TableProject</span>
+          <span class="sep">/</span>
+          <span class="current">Dashboard</span>
+        </div>
+        <div class="search-trigger">
+          <span>Search...</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="user-avatar">L</div>
+      </div>
+      <div class="app-body">
+        <div class="sidebar">
+          <div class="sidebar-section">Learning</div>
+          <div class="sidebar-item">
+            <span class="icon">📚</span> Today's Queue
+            <span class="sidebar-badge" style="background:#27272A;color:var(--success)">✓</span>
+          </div>
+          <div class="sidebar-item"><span class="icon">📁</span> Collections</div>
+          <div class="sidebar-item"><span class="icon">➕</span> Add Words</div>
+          <div class="sidebar-section">Insights</div>
+          <div class="sidebar-item active"><span class="icon">📊</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔍</span> Diagnostics</div>
+          <div class="sidebar-spacer"></div>
+          <div class="sidebar-item"><span class="icon">⚙️</span> Settings</div>
+        </div>
+        <div class="main-content">
+          <div class="page-header">
+            <div class="page-title">Dashboard</div>
+            <div class="page-subtitle">Your learning progress at a glance</div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="dash-card">
+              <div class="dash-label">Retention Rate</div>
+              <div class="dash-value">87%</div>
+              <div class="dash-delta up">↑ 4% vs last week</div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-label">Words Mastered</div>
+              <div class="dash-value">142</div>
+              <div class="dash-delta up">↑ 12 this week</div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-label">Review Streak</div>
+              <div class="dash-value">8d</div>
+              <div class="dash-delta up">Personal best</div>
+            </div>
+          </div>
+
+          <div class="dash-wide">
+            <div class="dash-label">14-Day Activity</div>
+            <div class="retention-chart">
+              <div class="retention-bar filled" style="height:45%"></div>
+              <div class="retention-bar filled" style="height:68%"></div>
+              <div class="retention-bar filled" style="height:52%"></div>
+              <div class="retention-bar filled" style="height:80%"></div>
+              <div class="retention-bar filled" style="height:40%"></div>
+              <div class="retention-bar empty" style="height:15%"></div>
+              <div class="retention-bar empty" style="height:10%"></div>
+              <div class="retention-bar filled" style="height:72%"></div>
+              <div class="retention-bar filled" style="height:90%"></div>
+              <div class="retention-bar filled" style="height:65%"></div>
+              <div class="retention-bar filled" style="height:58%"></div>
+              <div class="retention-bar filled" style="height:75%"></div>
+              <div class="retention-bar filled" style="height:82%"></div>
+              <div class="retention-bar today" style="height:35%"></div>
+            </div>
+            <div class="chart-labels">
+              <span>21</span><span>22</span><span>23</span><span>24</span>
+              <span>25</span><span>26</span><span>27</span><span>28</span>
+              <span>29</span><span>30</span><span>1</span><span>2</span>
+              <span>3</span><span style="color:#18181B;font-weight:600">Today</span>
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px">
+            <div class="page-header" style="margin-bottom:14px">
+              <div class="page-title" style="font-size:18px">Diagnostic Insights</div>
+            </div>
+            <div class="diagnostic-list">
+              <div class="diagnostic-item">
+                <div class="d-icon warn">⚡</div>
+                <div>
+                  <div class="d-title">Evening retention drop detected</div>
+                  <div class="d-desc">Your networking terms retention drops 35% when reviewed after 9 PM. Consider shifting technical vocabulary to morning sessions.</div>
+                </div>
+              </div>
+              <div class="diagnostic-item">
+                <div class="d-icon success">✓</div>
+                <div>
+                  <div class="d-title">IT vocabulary strength improving</div>
+                  <div class="d-desc">Your IT category retention improved from 78% to 87% over the past 2 weeks. Database and API terms are now consistently rated Good or Easy.</div>
+                </div>
+              </div>
+              <div class="diagnostic-item">
+                <div class="d-icon info">💡</div>
+                <div>
+                  <div class="d-title">Cross-language interference pattern</div>
+                  <div class="d-desc">When reviewing Japanese definitions after English ones for the same term, your accuracy drops 15%. Try single-language sessions for better focus.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== COLLECTIONS ==================== -->
+<section class="screen" id="collections">
+  <div class="screen-header">
+    <div class="label">Screen 5 of 6</div>
+    <h2>Collections</h2>
+    <p>User-organized vocabulary groups. Progress bars show mastery per collection. Familiar card-grid layout.</p>
+  </div>
+  <div class="mockup-wrap">
+    <div class="app-frame">
+      <div class="topbar">
+        <button class="sidebar-toggle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
+        <div class="breadcrumb">
+          <span>TableProject</span>
+          <span class="sep">/</span>
+          <span class="current">Collections</span>
+        </div>
+        <div class="search-trigger">
+          <span>Search...</span>
+          <kbd>⌘K</kbd>
+        </div>
+        <div class="user-avatar">L</div>
+      </div>
+      <div class="app-body">
+        <div class="sidebar">
+          <div class="sidebar-section">Learning</div>
+          <div class="sidebar-item">
+            <span class="icon">📚</span> Today's Queue
+            <span class="sidebar-badge">24</span>
+          </div>
+          <div class="sidebar-item active"><span class="icon">📁</span> Collections</div>
+          <div class="sidebar-item"><span class="icon">➕</span> Add Words</div>
+          <div class="sidebar-section">Insights</div>
+          <div class="sidebar-item"><span class="icon">📊</span> Dashboard</div>
+          <div class="sidebar-item"><span class="icon">🔍</span> Diagnostics</div>
+          <div class="sidebar-spacer"></div>
+          <div class="sidebar-item"><span class="icon">⚙️</span> Settings</div>
+        </div>
+        <div class="main-content">
+          <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div class="page-title">Collections</div>
+              <div class="page-subtitle">6 collections · 847 terms total</div>
+            </div>
+            <button class="btn btn-primary" style="margin-top:8px">+ New Collection</button>
+          </div>
+
+          <div class="collections-grid">
+            <div class="collection-card">
+              <div class="c-icon">💻</div>
+              <div class="c-name">IT Core Vocabulary</div>
+              <div class="c-meta">312 terms · 67% mastered</div>
+              <div class="c-progress"><div class="c-progress-fill" style="width:67%"></div></div>
+            </div>
+            <div class="collection-card">
+              <div class="c-icon">🎌</div>
+              <div class="c-name">JLPT N3 Kanji</div>
+              <div class="c-meta">245 terms · 42% mastered</div>
+              <div class="c-progress"><div class="c-progress-fill" style="width:42%"></div></div>
+            </div>
+            <div class="collection-card">
+              <div class="c-icon">🌐</div>
+              <div class="c-name">Networking Terms</div>
+              <div class="c-meta">89 terms · 78% mastered</div>
+              <div class="c-progress"><div class="c-progress-fill" style="width:78%"></div></div>
+            </div>
+            <div class="collection-card">
+              <div class="c-icon">📝</div>
+              <div class="c-name">TOEIC Essential</div>
+              <div class="c-meta">156 terms · 55% mastered</div>
+              <div class="c-progress"><div class="c-progress-fill" style="width:55%"></div></div>
+            </div>
+            <div class="collection-card">
+              <div class="c-icon">🗄️</div>
+              <div class="c-name">Database & SQL</div>
+              <div class="c-meta">34 terms · 91% mastered</div>
+              <div class="c-progress"><div class="c-progress-fill" style="width:91%"></div></div>
+            </div>
+            <div class="collection-card" style="border-style:dashed;display:flex;align-items:center;justify-content:center;min-height:140px">
+              <div style="text-align:center;color:var(--text-muted)">
+                <div style="font-size:24px;margin-bottom:6px">+</div>
+                <div style="font-size:14px">New Collection</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== ONBOARDING ==================== -->
+<section class="screen" id="onboarding">
+  <div class="screen-header">
+    <div class="label">Screen 6 of 6</div>
+    <h2>Onboarding</h2>
+    <p>5-question survey → AI learning plan → first review. Under 3 minutes, under 10 clicks. Clean, focused, no distractions.</p>
+  </div>
+  <div class="mockup-wrap">
+    <div class="app-frame">
+      <div class="topbar">
+        <button class="sidebar-toggle" style="visibility:hidden"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
+        <div class="breadcrumb">
+          <span class="current">TableProject</span>
+        </div>
+        <div style="width:60px"></div>
+        <div class="user-avatar">L</div>
+      </div>
+      <div class="app-body" style="position:relative;min-height:540px">
+        <div class="onboarding-overlay">
+          <div class="onboarding-box">
+            <div class="ob-icon">📚</div>
+            <div class="ob-title">Let's personalize your learning</div>
+            <div class="ob-desc">5 quick questions to create your perfect study plan. Takes less than a minute.</div>
+            <div class="ob-step-indicator">
+              <div class="ob-step-dot done"></div>
+              <div class="ob-step-dot active"></div>
+              <div class="ob-step-dot"></div>
+              <div class="ob-step-dot"></div>
+              <div class="ob-step-dot"></div>
+            </div>
+            <div class="ob-question">What's your primary learning goal?</div>
+            <div class="ob-options">
+              <div class="ob-option">🎯 TOEIC preparation</div>
+              <div class="ob-option selected">🎌 JLPT preparation (N3–N2)</div>
+              <div class="ob-option">💻 IT professional vocabulary</div>
+              <div class="ob-option">📖 General English & Japanese</div>
+            </div>
+            <button class="btn btn-primary" style="width:100%;padding:12px">Continue →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.showcase-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const tabs = document.querySelectorAll('.showcase-tab');
+  const map = { review: 0, revealed: 1, summary: 2, dashboard: 3, collections: 4, onboarding: 5 };
+  if (map[id] !== undefined) tabs[map[id]].classList.add('active');
+  window.scrollTo(0, 0);
+}
+</script>
+
+</body>
+</html>
