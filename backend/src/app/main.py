@@ -10,6 +10,7 @@ from src.app.modules.auth.api.router import router as auth_router
 from src.app.modules.auth.domain.exceptions import AuthDomainError
 from src.app.modules.srs.api.router import router as srs_router
 from src.app.modules.srs.domain.exceptions import SrsDomainError
+from src.app.modules.vocabulary.api.router import router as vocabulary_router
 
 health_router = APIRouter()
 
@@ -81,6 +82,7 @@ def create_application() -> FastAPI:
     app.include_router(health_router, prefix=settings.api_v1_prefix)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
     app.include_router(srs_router, prefix=f"{settings.api_v1_prefix}/srs_cards")
+    app.include_router(vocabulary_router, prefix=f"{settings.api_v1_prefix}/vocabulary_terms")
     return app
 
 

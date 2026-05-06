@@ -147,6 +147,45 @@ class VocabularyRepositoryImpl(VocabularyRepository):
         )
         return [_to_term_domain(model, []) for model in result.scalars().all()]
 
+    async def list_terms(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        cefr_level: str | None = None,
+        jlpt_level: str | None = None,
+        parent_id: int | None = None,
+    ) -> tuple[list[VocabularyTerm], int]:
+        statement = select(VocabularyTermModel)
+        count_statement = select(func.count(VocabularyTermModel.id))
+
+        if cefr_level is not None:
+            statement = statement.where(VocabularyTermModel.cefr_level == cefr_level)
+            count_statement = count_statement.where(VocabularyTermModel.cefr_level == cefr_level)
+
+        if jlpt_level is not None:
+            statement = statement.where(VocabularyTermModel.jlpt_level == jlpt_level)
+            count_statement = count_statement.where(VocabularyTermModel.jlpt_level == jlpt_level)
+
+        if parent_id is not None:
+            statement = statement.where(VocabularyTermModel.parent_id == parent_id)
+            count_statement = count_statement.where(VocabularyTermModel.parent_id == parent_id)
+
+        offset = (page - 1) * page_size
+        statement = (
+            statement.order_by(VocabularyTermModel.term.asc(), VocabularyTermModel.id.asc())
+            .offset(offset)
+            .limit(page_size)
+        )
+
+        result = await self._session.execute(statement)
+        count_result = await self._session.execute(count_statement)
+
+        terms = [_to_term_domain(model, []) for model in result.scalars().all()]
+        total = count_result.scalar_one()
+
+        return terms, total
+
     async def bulk_create_terms(self, terms: list[VocabularyTerm]) -> list[VocabularyTerm]:
         persisted_ids: list[int] = []
         created_count = 0

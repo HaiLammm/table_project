@@ -36,3 +36,15 @@ class VocabularyRepository(ABC):
     @abstractmethod
     async def bulk_create_terms(self, terms: list[VocabularyTerm]) -> list[VocabularyTerm]:
         raise NotImplementedError
+
+    @abstractmethod
+    async def list_terms(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        cefr_level: str | None = None,
+        jlpt_level: str | None = None,
+        parent_id: int | None = None,
+    ) -> tuple[list[VocabularyTerm], int]:
+        raise NotImplementedError

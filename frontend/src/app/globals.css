@@ -277,6 +277,14 @@
     line-height: 1.6;
     font-weight: 400;
   }
+
+  .font-ipa {
+    font-family: var(--font-mono-stack);
+  }
+
+  .text-jp {
+    line-height: 1.8;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
