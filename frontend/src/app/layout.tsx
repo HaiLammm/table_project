@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Noto_Sans_JP } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Providers } from "@/app/providers";
 
 import "./globals.css";
 
@@ -40,15 +41,17 @@ export default function RootLayout({
       className={`${inter.variable} ${notoSansJP.variable} ${jetbrainsMono.variable} h-full`}
     >
       <body className="min-h-full bg-background text-foreground">
-        <a
-          href="#main-content"
-          className="sr-only absolute left-4 top-4 rounded-md bg-surface px-3 py-2 text-sm font-medium text-text-primary shadow-sm focus:not-sr-only"
-        >
-          Skip to content
-        </a>
-        <TooltipProvider>
-          <div className="flex min-h-full flex-col">{children}</div>
-        </TooltipProvider>
+        <ClerkProvider>
+          <Providers>
+            <a
+              href="#main-content"
+              className="sr-only absolute left-4 top-4 rounded-md bg-surface px-3 py-2 text-sm font-medium text-text-primary shadow-sm focus:not-sr-only"
+            >
+              Skip to content
+            </a>
+            <div className="flex min-h-full flex-col">{children}</div>
+          </Providers>
+        </ClerkProvider>
       </body>
     </html>
   );

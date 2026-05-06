@@ -13,7 +13,10 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.app.core.config import settings
+from src.app.db.base import Base
+from src.app.db.session import get_async_session
 from src.app.main import app
+from src.app.modules.auth.infrastructure.models import UserModel
 
 
 async def _ensure_test_database() -> None:
@@ -38,7 +41,7 @@ async def _ensure_test_database() -> None:
     await engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def async_engine() -> AsyncGenerator[AsyncEngine, None]:
     await _ensure_test_database()
     engine = create_async_engine(settings.test_database_url, echo=False)
@@ -63,3 +66,41 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as async_client:
         yield async_client
+
+
+@pytest_asyncio.fixture
+async def auth_schema(async_engine: AsyncEngine) -> AsyncGenerator[None, None]:
+    assert UserModel.__table__ is not None
+
+    async with async_engine.begin() as connection:
+        await connection.run_sync(Base.metadata.drop_all)
+        await connection.run_sync(Base.metadata.create_all)
+
+    yield
+
+    async with async_engine.begin() as connection:
+        await connection.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture
+async def auth_client(
+    auth_schema: None,
+    async_engine: AsyncEngine,
+) -> AsyncGenerator[AsyncClient, None]:
+    session_factory = async_sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async def override_get_async_session() -> AsyncGenerator[AsyncSession, None]:
+        async with session_factory() as session:
+            yield session
+
+    app.dependency_overrides[get_async_session] = override_get_async_session
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as async_client:
+        yield async_client
+
+    app.dependency_overrides.clear()

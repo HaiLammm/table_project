@@ -11,6 +11,10 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://postgres:postgres@localhost:15432/table_project_test"
     )
     redis_url: str = "redis://localhost:6380/0"
+    clerk_publishable_key: str = ""
+    clerk_secret_key: str = ""
+    clerk_jwks_url: str = ""
+    clerk_webhook_secret: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
