@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { CommandPalette } from "@/components/layout/CommandPalette";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 
@@ -11,6 +12,7 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -21,6 +23,7 @@ export function AppShell({ children }: AppShellProps) {
           <Topbar
             mobileOpen={mobileOpen}
             onMenuToggle={() => setMobileOpen((open) => !open)}
+            onSearchOpen={() => setCommandPaletteOpen(true)}
           />
 
           <main id="main-content" className="flex-1 overflow-x-hidden">
@@ -30,6 +33,8 @@ export function AppShell({ children }: AppShellProps) {
           </main>
         </div>
       </div>
+
+      <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
   );
 }

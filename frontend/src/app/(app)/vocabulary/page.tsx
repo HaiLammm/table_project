@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AddTermForm } from "@/components/vocabulary/AddTermForm";
 import { useVocabularyList } from "@/hooks/useVocabularyList";
 import { useVocabularySearch } from "@/hooks/useVocabularySearch";
 import type { VocabularyTerm } from "@/types/vocabulary";
@@ -243,6 +244,7 @@ export default function VocabularyPage() {
   const [jlptLevel, setJlptLevel] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -273,12 +275,43 @@ export default function VocabularyPage() {
 
   return (
     <section className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-4 py-6 sm:px-6 lg:px-0">
-      <div className="space-y-2">
-        <h1 className="text-display text-text-primary">Vocabulary</h1>
-        <p className="text-body text-text-secondary">
-          Browse and search your vocabulary corpus
-        </p>
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <h1 className="text-display text-text-primary">Vocabulary</h1>
+          <p className="text-body text-text-secondary">
+            Browse and search your vocabulary corpus
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="flex items-center gap-2"
+        >
+          <Plus className="size-4" />
+          Add Term
+        </Button>
+        <Link href="/vocabulary/request">
+          <Button variant="outline" size="sm" className="flex items-center gap-2">
+            Request Terms
+          </Button>
+        </Link>
+        <Link href="/vocabulary/import">
+          <Button variant="outline" size="sm" className="flex items-center gap-2">
+            Import CSV
+          </Button>
+        </Link>
       </div>
+
+      {showAddForm && (
+        <Card className="bg-zinc-50 border border-zinc-200 rounded-[10px] p-5">
+          <CardContent className="p-0">
+            <AddTermForm onTermCreated={() => {
+              setShowAddForm(false);
+            }} />
+          </CardContent>
+        </Card>
+      )}
 
       <form onSubmit={handleSearch} className="flex gap-2">
         <div className="relative flex-1">

@@ -27,3 +27,4 @@ class VocabularyTerm:
     definitions: list[VocabularyDefinition] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    source: str | None = None

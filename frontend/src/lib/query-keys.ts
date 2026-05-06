@@ -19,3 +19,14 @@ export const vocabularyKeys = {
   detail: (id: number) => [...vocabularyKeys.all, "detail", id] as const,
   children: (parentId: number) => [...vocabularyKeys.all, "children", parentId] as const,
 };
+
+export const vocabularyRequestKeys = {
+  all: ["vocabularyRequest"] as const,
+  preview: () => [...vocabularyRequestKeys.all, "preview"] as const,
+};
+
+export const vocabularyImportKeys = {
+  all: ["vocabularyImport"] as const,
+  preview: () => [...vocabularyImportKeys.all, "preview"] as const,
+  import: () => [...vocabularyImportKeys.all, "import"] as const,
+};

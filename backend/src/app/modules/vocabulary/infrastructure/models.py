@@ -37,6 +37,7 @@ class VocabularyTermModel(TimestampMixin, Base):
     cefr_level: Mapped[str | None] = mapped_column(String(5), nullable=True)
     jlpt_level: Mapped[str | None] = mapped_column(String(5), nullable=True)
     part_of_speech: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(10), nullable=True, default="corpus")
 
 
 class VocabularyDefinitionModel(Base):

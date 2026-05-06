@@ -88,6 +88,23 @@ class InMemoryVocabularyRepository(VocabularyRepository):
     ) -> dict[int, list[VocabularyDefinition]]:
         return {tid: self._definitions.get(tid, []) for tid in term_ids}
 
+    async def find_by_user_and_term(
+        self,
+        term: str,
+        language: str,
+        user_id: int | None = None,
+    ) -> VocabularyTerm | None:
+        for t in self._terms.values():
+            if t.term == term and t.language == language:
+                return t
+        return None
+
+    async def find_by_value(self, term: str, language: str) -> VocabularyTerm | None:
+        for t in self._terms.values():
+            if t.term == term and t.language == language:
+                return t
+        return None
+
 
 async def test_vocabulary_service_list_terms_pagination() -> None:
     repo = InMemoryVocabularyRepository()

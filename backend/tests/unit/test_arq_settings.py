@@ -12,7 +12,18 @@ def test_worker_settings_use_configured_redis_url() -> None:
     assert WorkerSettings.redis_settings.database == expected.database
 
 
-def test_worker_settings_register_placeholder_job() -> None:
-    assert len(WorkerSettings.functions) == 2
-    assert WorkerSettings.functions[0].name == "noop"
-    assert WorkerSettings.functions[1].name == "process_data_export"
+def test_worker_settings_registers_enrichment_jobs() -> None:
+    function_names = [f.name for f in WorkerSettings.functions]
+
+    assert "noop" in function_names
+    assert "process_data_export" in function_names
+    assert "process_enrichment_job" in function_names
+    assert "process_corpus_sync_job" in function_names
+
+    enrichment_func = next(
+        f for f in WorkerSettings.functions if f.name == "process_enrichment_job"
+    )
+    assert enrichment_func.max_tries == 3
+
+    sync_func = next(f for f in WorkerSettings.functions if f.name == "process_corpus_sync_job")
+    assert sync_func.max_tries == 2

@@ -303,3 +303,226 @@ async def test_get_vocabulary_term_children(
     data = response.json()
     assert len(data["items"]) == 2
     assert {item["term"] for item in data["items"]} == {"Child1", "Child2"}
+
+
+async def test_create_vocabulary_term_success(
+    vocabulary_client: AsyncClient,
+) -> None:
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms",
+        json={
+            "term": "new_term",
+            "language": "en",
+            "definition": "A new term definition",
+            "cefr_level": "B2",
+            "part_of_speech": "noun",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["term"] == "new_term"
+    assert data["language"] == "en"
+    assert data["cefr_level"] == "B2"
+    assert data["part_of_speech"] == "noun"
+    assert len(data["definitions"]) == 1
+    assert data["definitions"][0]["definition"] == "A new term definition"
+    assert data["definitions"][0]["source"] == "user"
+
+
+async def test_create_vocabulary_term_without_definition(
+    vocabulary_client: AsyncClient,
+) -> None:
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms",
+        json={
+            "term": "minimal_term",
+            "language": "jp",
+            "jlpt_level": "N5",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["term"] == "minimal_term"
+    assert data["language"] == "jp"
+    assert data["jlpt_level"] == "N5"
+    assert data["definitions"] == []
+
+
+async def test_create_vocabulary_term_duplicate(
+    vocabulary_client: AsyncClient,
+    async_engine: AsyncEngine,
+) -> None:
+    from datetime import UTC, datetime
+
+    session_factory = async_sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async with session_factory() as session:
+        await session.execute(
+            insert(VocabularyTermModel).values(
+                term="duplicate_term",
+                language="en",
+                part_of_speech="noun",
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms",
+        json={
+            "term": "duplicate_term",
+            "language": "en",
+        },
+    )
+
+    assert response.status_code == 409
+    data = response.json()
+    assert data["error"]["code"] == "DUPLICATE_TERM"
+    assert data["error"]["message"] == "This term already exists in your vocabulary"
+
+
+async def test_create_vocabulary_term_validation_error(
+    vocabulary_client: AsyncClient,
+) -> None:
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms",
+        json={
+            "term": "",
+            "language": "en",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+async def test_create_vocabulary_term_invalid_language(
+    vocabulary_client: AsyncClient,
+) -> None:
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms",
+        json={
+            "term": "test_term",
+            "language": "fr",
+        },
+    )
+
+    assert response.status_code == 422
+
+
+async def test_preview_csv_import_valid(
+    vocabulary_client: AsyncClient,
+) -> None:
+    csv_content = b"term,language,definition\nhello,en,A greeting\ngoodbye,en,A farewell"
+    files = {"file": ("test.csv", csv_content, "text/csv")}
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import/preview",
+        files=files,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_rows"] == 2
+    assert data["valid_count"] == 2
+    assert data["warning_count"] == 0
+    assert data["error_count"] == 0
+    assert len(data["preview_rows"]) == 2
+
+
+async def test_preview_csv_import_with_warnings(
+    vocabulary_client: AsyncClient,
+) -> None:
+    csv_content = b"term,language\n<html>tag,en\nvalidterm,en"
+    files = {"file": ("test.csv", csv_content, "text/csv")}
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import/preview",
+        files=files,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_rows"] == 2
+    assert data["warning_count"] == 1
+
+
+async def test_preview_csv_import_empty_file(
+    vocabulary_client: AsyncClient,
+) -> None:
+    csv_content = b""
+    files = {"file": ("empty.csv", csv_content, "text/csv")}
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import/preview",
+        files=files,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_rows"] == 0
+    assert data["valid_count"] == 0
+
+
+async def test_preview_csv_import_invalid_file_type(
+    vocabulary_client: AsyncClient,
+) -> None:
+    csv_content = b"term,language\nhello,en"
+    files = {"file": ("test.pdf", csv_content, "application/pdf")}
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import/preview",
+        files=files,
+    )
+    assert response.status_code == 422
+    data = response.json()
+    assert data["error"]["code"] == "INVALID_FILE_TYPE"
+
+
+async def test_preview_csv_import_tsv(
+    vocabulary_client: AsyncClient,
+) -> None:
+    csv_content = b"term\tlanguage\tdefinition\nhello\ten\tA greeting"
+    files = {"file": ("test.tsv", csv_content, "text/tab-separated")}
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import/preview",
+        files=files,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_rows"] == 1
+    assert data["valid_count"] == 1
+
+
+async def test_import_csv_success(
+    vocabulary_client: AsyncClient,
+) -> None:
+    csv_content = b"term,language,definition\nimported_term,en,An imported definition"
+    files = {"file": ("test.csv", csv_content, "text/csv")}
+    response = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import",
+        files=files,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["imported_count"] >= 0
+    assert data["review_count"] >= 0
+
+
+async def test_import_csv_with_duplicates(
+    vocabulary_client: AsyncClient,
+) -> None:
+    csv_content = b"term,language\nduplicate_term,en"
+    files = {"file": ("test.csv", csv_content, "text/csv")}
+    response1 = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import",
+        files=files,
+    )
+    assert response1.status_code == 200
+    csv_content2 = b"term,language\nduplicate_term,en"
+    files2 = {"file": ("test2.csv", csv_content2, "text/csv")}
+    response2 = await vocabulary_client.post(
+        "/api/v1/vocabulary_terms/import",
+        files=files2,
+    )
+    assert response2.status_code == 200
+    data = response2.json()
+    assert data["duplicates_skipped"] >= 0

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-05"
-last_updated: "2026-05-06"  # story 3-3 ready-for-dev
+last_updated: "2026-05-06"  # story 3-8 ready for review
 project: table_project
 project_key: NOKEY
 tracking_system: file-system
@@ -64,15 +64,15 @@ development_status:
   3-1-vocabulary-data-model-pre-seeded-corpus: review
   3-2-browse-search-vocabulary-corpus: review
   3-3-view-vocabulary-term: review
-  3-4-add-vocabulary-term-manually: backlog
-  3-5-structured-vocabulary-request: backlog
-  3-6-csv-import-with-error-handling: backlog
-  3-7-llm-gateway-auto-enrichment-pipeline: backlog
-  3-8-command-palette: backlog
+  3-4-add-vocabulary-term-manually: review
+  3-5-structured-vocabulary-request: review
+  3-6-csv-import-with-error-handling: review
+  3-7-llm-gateway-auto-enrichment-pipeline: ready-for-dev
+  3-8-command-palette: review
   epic-3-retrospective: optional
 
   # Epic 4: Spaced Repetition Review Engine
-  epic-4: backlog
+  epic-4: in-progress
   4-1-srs-data-model-fsrs-integration: backlog
   4-2-reviewcard-component-card-reveal-flow: backlog
   4-3-ratingbutton-component-card-rating: backlog

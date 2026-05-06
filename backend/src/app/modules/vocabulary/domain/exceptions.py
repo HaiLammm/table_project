@@ -1,0 +1,2 @@
+class DuplicateTermError(Exception):
+    pass

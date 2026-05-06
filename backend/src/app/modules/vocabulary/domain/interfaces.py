@@ -48,3 +48,16 @@ class VocabularyRepository(ABC):
         parent_id: int | None = None,
     ) -> tuple[list[VocabularyTerm], int]:
         raise NotImplementedError
+
+    @abstractmethod
+    async def find_by_user_and_term(
+        self,
+        term: str,
+        language: str,
+        user_id: int | None = None,
+    ) -> VocabularyTerm | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def find_by_value(self, term: str, language: str) -> VocabularyTerm | None:
+        raise NotImplementedError

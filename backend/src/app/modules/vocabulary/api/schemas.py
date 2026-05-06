@@ -1,6 +1,41 @@
 from datetime import datetime
-
+from typing import Literal
 from pydantic import BaseModel, Field
+
+
+class CSVRowPreview(BaseModel):
+    row_number: int
+    term: str | None
+    language: str | None
+    definition: str | None
+    tags: str | None
+    status: Literal["valid", "warning", "error"]
+    error_message: str | None = None
+
+
+class CSVImportPreviewResponse(BaseModel):
+    total_rows: int
+    valid_count: int
+    warning_count: int
+    error_count: int
+    preview_rows: list[CSVRowPreview]
+    detected_columns: list[str]
+
+
+class CSVImportResultResponse(BaseModel):
+    imported_count: int
+    review_count: int
+    duplicates_skipped: int
+    errors: list[dict]
+
+
+class VocabularyTermCreateRequest(BaseModel):
+    term: str = Field(min_length=1, max_length=100)
+    language: Literal["en", "jp"]
+    definition: str | None = None
+    cefr_level: str | None = None
+    jlpt_level: str | None = None
+    part_of_speech: str | None = None
 
 
 class VocabularyDefinitionResponse(BaseModel):

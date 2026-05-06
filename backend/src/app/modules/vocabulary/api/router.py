@@ -1,15 +1,21 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 
 from src.app.modules.vocabulary.api.dependencies import VocabularyServiceDependency
 from src.app.modules.vocabulary.api.schemas import (
+    CSVImportPreviewResponse,
+    CSVImportResultResponse,
+    CSVRowPreview,
     VocabularyDefinitionResponse,
     VocabularyFilterParams,
     VocabularySearchParams,
+    VocabularyTermCreateRequest,
     VocabularyTermListResponse,
     VocabularyTermResponse,
 )
+from src.app.modules.vocabulary.application.csv_parser import parse_csv
+from src.app.modules.vocabulary.domain.exceptions import DuplicateTermError
 
 router = APIRouter(tags=["vocabulary"])
 
@@ -89,4 +95,132 @@ async def get_vocabulary_term_children(
         page=1,
         page_size=len(children),
         has_next=False,
+    )
+
+
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=VocabularyTermResponse)
+async def create_vocabulary_term(
+    payload: VocabularyTermCreateRequest,
+    service: VocabularyServiceDependency,
+) -> VocabularyTermResponse:
+    try:
+        term = await service.create_user_term(
+            term=payload.term,
+            language=payload.language,
+            definition=payload.definition,
+            cefr_level=payload.cefr_level,
+            jlpt_level=payload.jlpt_level,
+            part_of_speech=payload.part_of_speech,
+        )
+        return VocabularyTermResponse.model_validate(term)
+    except DuplicateTermError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": {
+                    "code": "DUPLICATE_TERM",
+                    "message": "This term already exists in your vocabulary",
+                }
+            },
+        )
+
+
+@router.post("/import/preview")
+async def preview_csv_import(
+    service: VocabularyServiceDependency,
+    file: UploadFile,
+) -> CSVImportPreviewResponse:
+    if file.size is not None and file.size > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": {
+                    "code": "FILE_TOO_LARGE",
+                    "message": "File exceeds maximum size of 10MB",
+                }
+            },
+        )
+
+    allowed_types = {"text/csv", "text/tab-separated", "text/plain", "application/csv"}
+    content_type = file.content_type or ""
+    if content_type not in allowed_types and not (
+        file.filename and any(ext in file.filename.lower() for ext in [".csv", ".tsv", ".txt"])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": {
+                    "code": "INVALID_FILE_TYPE",
+                    "message": "Only CSV, TSV, and TXT files are accepted",
+                }
+            },
+        )
+
+    content = await file.read()
+    parse_result = parse_csv(content)
+
+    preview_rows = [
+        CSVRowPreview(
+            row_number=row.row_number,
+            term=row.term,
+            language=row.language,
+            definition=row.definition,
+            tags="::".join(row.tags) if row.tags else None,
+            status=row.status,
+            error_message=row.error_message,
+        )
+        for row in parse_result.rows[:10]
+    ]
+
+    return CSVImportPreviewResponse(
+        total_rows=parse_result.total_rows,
+        valid_count=parse_result.valid_count,
+        warning_count=parse_result.warning_count,
+        error_count=parse_result.error_count,
+        preview_rows=preview_rows,
+        detected_columns=parse_result.detected_columns,
+    )
+
+
+@router.post("/import", response_model=CSVImportResultResponse)
+async def import_csv(
+    service: VocabularyServiceDependency,
+    file: UploadFile,
+) -> CSVImportResultResponse:
+    if file.size is not None and file.size > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": {
+                    "code": "FILE_TOO_LARGE",
+                    "message": "File exceeds maximum size of 10MB",
+                }
+            },
+        )
+
+    allowed_types = {"text/csv", "text/tab-separated", "text/plain", "application/csv"}
+    content_type = file.content_type or ""
+    if content_type not in allowed_types and not (
+        file.filename and any(ext in file.filename.lower() for ext in [".csv", ".tsv", ".txt"])
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": {
+                    "code": "INVALID_FILE_TYPE",
+                    "message": "Only CSV, TSV, and TXT files are accepted",
+                }
+            },
+        )
+
+    content = await file.read()
+    parse_result = parse_csv(content)
+
+    result = await service.import_csv(parse_result)
+
+    return CSVImportResultResponse(
+        imported_count=result["imported_count"],
+        review_count=result["review_count"],
+        duplicates_skipped=result["duplicates_skipped"],
+        errors=result["errors"],
     )

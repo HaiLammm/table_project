@@ -57,6 +57,7 @@ class VocabularyRepositoryImpl(VocabularyRepository):
             cefr_level=term.cefr_level,
             jlpt_level=term.jlpt_level,
             part_of_speech=term.part_of_speech,
+            source=term.source,
         )
         self._session.add(model)
         await self._session.commit()
@@ -273,3 +274,36 @@ class VocabularyRepositoryImpl(VocabularyRepository):
             )
 
         return definitions_by_term_id
+
+    async def find_by_user_and_term(
+        self,
+        term: str,
+        language: str,
+        user_id: int | None = None,
+    ) -> VocabularyTerm | None:
+        result = await self._session.execute(
+            select(VocabularyTermModel).where(
+                VocabularyTermModel.term == term,
+                VocabularyTermModel.language == language,
+            ),
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            return None
+
+        definitions = await self._load_definitions([model.id])
+        return _to_term_domain(model, definitions.get(model.id, []))
+
+    async def find_by_value(self, term: str, language: str) -> VocabularyTerm | None:
+        result = await self._session.execute(
+            select(VocabularyTermModel).where(
+                VocabularyTermModel.term == term,
+                VocabularyTermModel.language == language,
+            ),
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            return None
+
+        definitions = await self._load_definitions([model.id])
+        return _to_term_domain(model, definitions.get(model.id, []))

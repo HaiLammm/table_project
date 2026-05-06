@@ -8,13 +8,17 @@ import { Button } from "@/components/ui/button";
 type TopbarProps = {
   mobileOpen: boolean;
   onMenuToggle: () => void;
+  onSearchOpen: () => void;
 };
 
 const pageLabels: Record<string, string> = {
   "/": "Today's Queue",
   "/collections": "Collections",
   "/dashboard": "Dashboard",
+  "/diagnostics": "Diagnostics",
   "/settings": "Settings",
+  "/review": "Review",
+  "/vocabulary": "Vocabulary",
 };
 
 function getCurrentPageLabel(pathname: string) {
@@ -27,7 +31,7 @@ function getCurrentPageLabel(pathname: string) {
   return pageLabels[`/${segment}`] ?? "Current Page";
 }
 
-export function Topbar({ mobileOpen, onMenuToggle }: TopbarProps) {
+export function Topbar({ mobileOpen, onMenuToggle, onSearchOpen }: TopbarProps) {
   const pathname = usePathname();
   const currentPage = getCurrentPageLabel(pathname);
 
@@ -60,10 +64,12 @@ export function Topbar({ mobileOpen, onMenuToggle }: TopbarProps) {
           type="button"
           variant="ghost"
           size="sm"
-          disabled
-          className="gap-2 border border-zinc-800 bg-zinc-900/50 px-3 text-zinc-200 opacity-100 hover:bg-zinc-800 hover:text-zinc-50 disabled:opacity-100"
+          onClick={onSearchOpen}
+          aria-label="Open command palette"
+          className="w-[11rem] justify-start gap-2 border border-zinc-800 bg-zinc-900/50 px-3 text-zinc-200 hover:bg-zinc-800 hover:text-zinc-50 sm:w-auto"
         >
           <Search className="size-4" />
+          <span className="sm:hidden">Search...</span>
           <span className="hidden sm:inline">Search</span>
           <kbd className="hidden rounded-md border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-300 sm:inline-flex">
             ⌘K

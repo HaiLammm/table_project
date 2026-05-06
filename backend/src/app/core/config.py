@@ -20,6 +20,17 @@ class Settings(BaseSettings):
     data_export_storage_path: Path = Path(__file__).resolve().parents[3] / "data" / "exports"
     data_export_ttl_days: int = 7
 
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-haiku-4-5"
+    google_api_key: str = ""
+    google_model: str = "gemini-2.5-flash"
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-v4-flash"
+
+    redis_enrichment_ttl_days: int = 30
+    redis_preview_ttl_seconds: int = 3600
+    daily_cost_cap_usd: float = 0.02
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
