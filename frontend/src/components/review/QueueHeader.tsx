@@ -1,6 +1,7 @@
 type QueueHeaderProps = {
   dueCount: number;
   estimatedMinutes: number;
+  retentionRate?: number | null;
 };
 
 type StatChipProps = {
@@ -19,7 +20,7 @@ function StatChip({ label, value }: StatChipProps) {
   );
 }
 
-export function QueueHeader({ dueCount, estimatedMinutes }: QueueHeaderProps) {
+export function QueueHeader({ dueCount, estimatedMinutes, retentionRate }: QueueHeaderProps) {
   return (
     <div className="space-y-4">
       <div>
@@ -32,6 +33,9 @@ export function QueueHeader({ dueCount, estimatedMinutes }: QueueHeaderProps) {
       <div className="flex flex-wrap gap-2">
         <StatChip label="Ready" value={`${dueCount} cards`} />
         <StatChip label="Estimate" value={`~${estimatedMinutes} min`} />
+        {retentionRate !== undefined && retentionRate !== null && (
+          <StatChip label="Retention" value={`${Math.round(retentionRate)}%`} />
+        )}
       </div>
     </div>
   );

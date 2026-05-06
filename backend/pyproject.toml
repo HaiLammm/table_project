@@ -9,6 +9,7 @@ dependencies = [
     "arq>=0.28.0",
     "asyncpg>=0.31.0",
     "fastapi>=0.136.1",
+    "fsrs>=6.3.1",
     "gunicorn>=26.0.0",
     "jamdict>=0.1a11.post2",
     "jamdict-data>=1.5",

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.app.db.session import get_async_session
 from src.app.modules.auth.api.dependencies import get_current_user as get_authenticated_user
 from src.app.modules.auth.domain.entities import User
-from src.app.modules.srs.application.services import QueueStatsService
+from src.app.modules.srs.application.services import QueueStatsService, ReviewSchedulingService
 from src.app.modules.srs.infrastructure.repository import SqlAlchemySrsCardRepository
 
 SessionDependency = Annotated[AsyncSession, Depends(get_async_session)]
@@ -19,3 +19,7 @@ async def get_current_user(current_user: CurrentUserDependency) -> User:
 
 def get_queue_stats_service(session: SessionDependency) -> QueueStatsService:
     return QueueStatsService(SqlAlchemySrsCardRepository(session))
+
+
+def get_review_scheduling_service(session: SessionDependency) -> ReviewSchedulingService:
+    return ReviewSchedulingService(SqlAlchemySrsCardRepository(session))

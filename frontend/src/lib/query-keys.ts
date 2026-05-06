@@ -10,6 +10,8 @@ export const srsKeys = {
   all: ["srs"] as const,
   queueStats: () => [...srsKeys.all, "queue-stats"] as const,
   queue: (mode: "full" | "catchup") => [...srsKeys.all, "queue", mode] as const,
+  card: (id: number) => [...srsKeys.all, "card", id] as const,
+  dueCards: () => [...srsKeys.all, "due-cards"] as const,
 };
 
 export const vocabularyKeys = {

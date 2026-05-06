@@ -7,11 +7,12 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app.core import security as security_module
 from src.app.core.config import settings
-from src.app.modules.srs.infrastructure.models import SrsCardModel
+from src.app.modules.srs.infrastructure.models import SrsCardModel, SrsReviewModel
 
 
 class StubSigningKey:
@@ -110,11 +111,112 @@ async def seed_srs_cards(
             SrsCardModel(
                 user_id=user_id,
                 term_id=index,
+                language="en",
                 due_at=now - offset,
                 fsrs_state={"step": index},
             ),
         )
     await async_session.commit()
+
+
+async def test_create_card_endpoint_initializes_fsrs_state(
+    auth_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auth_headers = await create_authenticated_user(
+        auth_client,
+        monkeypatch,
+        clerk_id="user_create_card",
+        email="create-card@example.com",
+    )
+
+    response = await auth_client.post(
+        "/api/v1/srs_cards",
+        headers=auth_headers,
+        json={"term_id": 501, "language": "en"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["term_id"] == 501
+    assert payload["language"] == "en"
+    assert payload["reps"] == 0
+    assert payload["lapses"] == 0
+    assert payload["stability"] is None
+    assert payload["difficulty"] is None
+    assert payload["fsrs_state"]["state"] == 1
+    assert payload["fsrs_state"]["step"] == 0
+
+
+async def test_review_card_endpoint_updates_schedule_and_creates_review_log(
+    auth_client: AsyncClient,
+    async_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auth_headers = await create_authenticated_user(
+        auth_client,
+        monkeypatch,
+        clerk_id="user_review_card",
+        email="review-card@example.com",
+    )
+    create_response = await auth_client.post(
+        "/api/v1/srs_cards",
+        headers=auth_headers,
+        json={"term_id": 601, "language": "jp"},
+    )
+    created_card = create_response.json()
+    session_id = str(uuid4())
+
+    response = await auth_client.post(
+        f"/api/v1/srs_cards/{created_card['id']}/review",
+        headers=auth_headers,
+        json={"rating": 3, "response_time_ms": 1400, "session_id": session_id},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == created_card["id"]
+    assert payload["language"] == "jp"
+    assert payload["reps"] == 1
+    assert payload["lapses"] == 0
+    assert payload["stability"] is not None
+    assert payload["difficulty"] is not None
+    assert payload["next_due_at"] == payload["due_at"]
+    assert payload["interval_display"]
+
+    review_rows = await async_session.execute(select(SrsReviewModel))
+    stored_review = review_rows.scalar_one()
+    assert stored_review.card_id == created_card["id"]
+    assert stored_review.rating == 3
+    assert stored_review.response_time_ms == 1400
+    assert str(stored_review.session_id) == session_id
+
+
+async def test_create_card_endpoint_rejects_duplicate_term_language(
+    auth_client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    auth_headers = await create_authenticated_user(
+        auth_client,
+        monkeypatch,
+        clerk_id="user_duplicate_card",
+        email="duplicate-card@example.com",
+    )
+
+    first_response = await auth_client.post(
+        "/api/v1/srs_cards",
+        headers=auth_headers,
+        json={"term_id": 501, "language": "en"},
+    )
+    duplicate_response = await auth_client.post(
+        "/api/v1/srs_cards",
+        headers=auth_headers,
+        json={"term_id": 501, "language": "en"},
+    )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json()["error"]["code"] == "duplicate_card"
 
 
 async def test_queue_stats_endpoint_returns_due_and_overdue_counts(
@@ -177,7 +279,7 @@ async def test_queue_endpoint_returns_full_queue_with_pagination(
     assert [item["term_id"] for item in response.json()["items"]] == [2, 3]
 
 
-async def test_queue_endpoint_returns_thirty_most_overdue_cards_for_catchup(
+async def test_due_alias_returns_thirty_most_overdue_cards_for_catchup(
     auth_client: AsyncClient,
     async_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -196,7 +298,7 @@ async def test_queue_endpoint_returns_thirty_most_overdue_cards_for_catchup(
     )
 
     response = await auth_client.get(
-        "/api/v1/srs_cards/queue?mode=catchup&limit=30&offset=9",
+        "/api/v1/srs_cards/due?mode=catchup&limit=30&offset=9",
         headers=auth_headers,
     )
 

@@ -1,5 +1,5 @@
 # generated: 2026-05-05
-# last_updated: 2026-05-05
+# last_updated: 2026-05-06
 # project: table_project
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-05"
-last_updated: "2026-05-06"  # story 3-8 ready for review
+last_updated: "2026-05-06"  # story 4-2 in progress
 project: table_project
 project_key: NOKEY
 tracking_system: file-system
@@ -73,8 +73,8 @@ development_status:
 
   # Epic 4: Spaced Repetition Review Engine
   epic-4: in-progress
-  4-1-srs-data-model-fsrs-integration: backlog
-  4-2-reviewcard-component-card-reveal-flow: backlog
+  4-1-srs-data-model-fsrs-integration: done
+  4-2-reviewcard-component-card-reveal-flow: review
   4-3-ratingbutton-component-card-rating: backlog
   4-4-review-session-flow-keyboard-navigation: backlog
   4-5-diagnostic-micro-insertions: backlog

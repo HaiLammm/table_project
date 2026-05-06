@@ -6,3 +6,18 @@ class SrsDomainError(Exception):
         super().__init__(message)
         self.message = message
         self.details = details
+
+
+class CardNotFoundError(SrsDomainError):
+    status_code = 404
+    code = "card_not_found"
+
+
+class CardNotDueError(SrsDomainError):
+    status_code = 409
+    code = "card_not_due"
+
+
+class DuplicateCardError(SrsDomainError):
+    status_code = 409
+    code = "duplicate_card"
