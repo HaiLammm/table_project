@@ -8,14 +8,26 @@ from svix.webhooks import Webhook, WebhookVerificationError
 from src.app.core.config import settings
 from src.app.db.session import get_async_session
 from src.app.modules.auth.api.dependencies import get_current_user as get_authenticated_user
-from src.app.modules.auth.api.schemas import UserResponse, WebhookPayload, WebhookSyncResponse
+from src.app.modules.auth.api.schemas import (
+    UserPreferencesResponse,
+    UserPreferencesUpdateRequest,
+    UserResponse,
+    WebhookPayload,
+    WebhookSyncResponse,
+)
 from src.app.modules.auth.application.services import (
     ClerkEmailAddress,
     ClerkUserSyncPayload,
+    UserPreferencesService,
+    UserPreferencesUpdateInput,
     UserSyncService,
 )
 from src.app.modules.auth.domain.entities import User
-from src.app.modules.auth.domain.exceptions import AuthenticationError, AuthorizationError
+from src.app.modules.auth.domain.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    UserNotFoundError,
+)
 from src.app.modules.auth.infrastructure.repository import SqlAlchemyUserRepository
 
 logger = structlog.get_logger().bind(module="auth_api")
@@ -29,8 +41,26 @@ def get_user_sync_service(
     return UserSyncService(SqlAlchemyUserRepository(session))
 
 
+def get_user_preferences_service(
+    session: SessionDependency,
+) -> UserPreferencesService:
+    return UserPreferencesService(SqlAlchemyUserRepository(session))
+
+
 CurrentUserDependency = Annotated[User, Depends(get_authenticated_user)]
 UserSyncServiceDependency = Annotated[UserSyncService, Depends(get_user_sync_service)]
+UserPreferencesServiceDependency = Annotated[
+    UserPreferencesService,
+    Depends(get_user_preferences_service),
+]
+
+
+def _require_user_id(current_user: User) -> int:
+    if current_user.id is None:
+        msg = "User not found"
+        raise UserNotFoundError(msg)
+
+    return current_user.id
 
 
 @router.get("/users/me", response_model=UserResponse, tags=["users"])
@@ -38,6 +68,38 @@ async def read_current_user(
     current_user: CurrentUserDependency,
 ) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.get("/users/me/preferences", response_model=UserPreferencesResponse, tags=["users"])
+async def read_current_user_preferences(
+    current_user: CurrentUserDependency,
+    user_preferences_service: UserPreferencesServiceDependency,
+) -> UserPreferencesResponse:
+    preferences = await user_preferences_service.get_preferences(
+        user_id=_require_user_id(current_user),
+    )
+    return UserPreferencesResponse.model_validate(preferences)
+
+
+@router.put("/users/me/preferences", response_model=UserPreferencesResponse, tags=["users"])
+async def update_current_user_preferences(
+    payload: UserPreferencesUpdateRequest,
+    current_user: CurrentUserDependency,
+    user_preferences_service: UserPreferencesServiceDependency,
+) -> UserPreferencesResponse:
+    preferences = await user_preferences_service.update_preferences(
+        user_id=_require_user_id(current_user),
+        updates=UserPreferencesUpdateInput(
+            learning_goal=payload.learning_goal,
+            english_level=payload.english_level,
+            japanese_level=payload.japanese_level,
+            daily_study_minutes=payload.daily_study_minutes,
+            it_domain=payload.it_domain,
+            notification_email=payload.notification_email,
+            notification_review_reminder=payload.notification_review_reminder,
+        ),
+    )
+    return UserPreferencesResponse.model_validate(preferences)
 
 
 @router.post("/auth/webhook", response_model=WebhookSyncResponse, tags=["auth"])

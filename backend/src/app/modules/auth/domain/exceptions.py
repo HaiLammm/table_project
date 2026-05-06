@@ -20,3 +20,7 @@ class AuthorizationError(AuthDomainError):
 
 class UserNotFoundError(AuthenticationError):
     code = "user_not_found"
+
+
+class InvalidUserPreferencesError(AuthDomainError):
+    code = "invalid_user_preferences"

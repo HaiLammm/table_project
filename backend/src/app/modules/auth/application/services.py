@@ -2,10 +2,24 @@ from dataclasses import dataclass, field
 
 import structlog
 
-from src.app.modules.auth.domain.entities import User
-from src.app.modules.auth.domain.exceptions import AuthenticationError
-from src.app.modules.auth.domain.interfaces import UserRepository
-from src.app.modules.auth.domain.value_objects import UserTier
+from src.app.modules.auth.domain.entities import User, UserPreferences
+from src.app.modules.auth.domain.exceptions import AuthenticationError, InvalidUserPreferencesError
+from src.app.modules.auth.domain.interfaces import UserPreferencesRepository, UserRepository
+from src.app.modules.auth.domain.value_objects import (
+    ALLOWED_DAILY_STUDY_MINUTES,
+    DEFAULT_DAILY_STUDY_MINUTES,
+    DEFAULT_ENGLISH_LEVEL,
+    DEFAULT_IT_DOMAIN,
+    DEFAULT_JAPANESE_LEVEL,
+    DEFAULT_LEARNING_GOAL,
+    DEFAULT_NOTIFICATION_EMAIL,
+    DEFAULT_NOTIFICATION_REVIEW_REMINDER,
+    EnglishLevel,
+    ITDomain,
+    JapaneseLevel,
+    LearningGoal,
+    UserTier,
+)
 
 logger = structlog.get_logger().bind(module="auth_service")
 
@@ -25,6 +39,17 @@ class ClerkUserSyncPayload:
     first_name: str | None = None
     last_name: str | None = None
     username: str | None = None
+
+
+@dataclass(slots=True, kw_only=True)
+class UserPreferencesUpdateInput:
+    learning_goal: LearningGoal | None = None
+    english_level: EnglishLevel | None = None
+    japanese_level: JapaneseLevel | None = None
+    daily_study_minutes: int | None = None
+    it_domain: ITDomain | None = None
+    notification_email: bool | None = None
+    notification_review_reminder: bool | None = None
 
 
 class UserSyncService:
@@ -107,3 +132,73 @@ class UserSyncService:
             return payload.email_addresses[0].email_address
 
         return None
+
+
+class UserPreferencesService:
+    def __init__(self, user_preferences_repository: UserPreferencesRepository) -> None:
+        self._user_preferences_repository = user_preferences_repository
+
+    async def get_preferences(self, user_id: int) -> UserPreferences:
+        preferences = await self._user_preferences_repository.get_by_user_id(user_id)
+        if preferences is not None:
+            return preferences
+
+        return self._build_default_preferences(user_id)
+
+    async def update_preferences(
+        self,
+        user_id: int,
+        updates: UserPreferencesUpdateInput,
+    ) -> UserPreferences:
+        self._validate_daily_study_minutes(updates.daily_study_minutes)
+
+        current_preferences = await self.get_preferences(user_id)
+        next_preferences = UserPreferences(
+            id=current_preferences.id,
+            user_id=user_id,
+            learning_goal=updates.learning_goal or current_preferences.learning_goal,
+            english_level=updates.english_level or current_preferences.english_level,
+            japanese_level=updates.japanese_level or current_preferences.japanese_level,
+            daily_study_minutes=updates.daily_study_minutes
+            or current_preferences.daily_study_minutes,
+            it_domain=updates.it_domain or current_preferences.it_domain,
+            notification_email=(
+                updates.notification_email
+                if updates.notification_email is not None
+                else current_preferences.notification_email
+            ),
+            notification_review_reminder=(
+                updates.notification_review_reminder
+                if updates.notification_review_reminder is not None
+                else current_preferences.notification_review_reminder
+            ),
+            created_at=current_preferences.created_at,
+            updated_at=current_preferences.updated_at,
+        )
+        return await self._user_preferences_repository.upsert(next_preferences)
+
+    def _build_default_preferences(self, user_id: int) -> UserPreferences:
+        return UserPreferences(
+            user_id=user_id,
+            learning_goal=DEFAULT_LEARNING_GOAL,
+            english_level=DEFAULT_ENGLISH_LEVEL,
+            japanese_level=DEFAULT_JAPANESE_LEVEL,
+            daily_study_minutes=DEFAULT_DAILY_STUDY_MINUTES,
+            it_domain=DEFAULT_IT_DOMAIN,
+            notification_email=DEFAULT_NOTIFICATION_EMAIL,
+            notification_review_reminder=DEFAULT_NOTIFICATION_REVIEW_REMINDER,
+        )
+
+    def _validate_daily_study_minutes(self, daily_study_minutes: int | None) -> None:
+        if daily_study_minutes is None:
+            return
+
+        if daily_study_minutes not in ALLOWED_DAILY_STUDY_MINUTES:
+            msg = "Invalid daily study minutes value"
+            raise InvalidUserPreferencesError(
+                msg,
+                details={
+                    "daily_study_minutes": daily_study_minutes,
+                    "allowed_values": sorted(ALLOWED_DAILY_STUDY_MINUTES),
+                },
+            )

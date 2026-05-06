@@ -3,7 +3,15 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.app.modules.auth.domain.value_objects import UserTier
+from src.app.modules.auth.domain.value_objects import (
+    EnglishLevel,
+    ITDomain,
+    JapaneseLevel,
+    LearningGoal,
+    UserTier,
+)
+
+DailyStudyMinutes = Literal[5, 15, 30, 60]
 
 
 class UserResponse(BaseModel):
@@ -41,3 +49,25 @@ class WebhookSyncResponse(BaseModel):
     status: Literal["synced", "ignored"]
     event_type: Literal["user.created", "user.updated", "user.deleted"]
     user: UserResponse | None = None
+
+
+class UserPreferencesUpdateRequest(BaseModel):
+    learning_goal: LearningGoal | None = None
+    english_level: EnglishLevel | None = None
+    japanese_level: JapaneseLevel | None = None
+    daily_study_minutes: DailyStudyMinutes | None = None
+    it_domain: ITDomain | None = None
+    notification_email: bool | None = None
+    notification_review_reminder: bool | None = None
+
+
+class UserPreferencesResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    learning_goal: LearningGoal
+    english_level: EnglishLevel
+    japanese_level: JapaneseLevel
+    daily_study_minutes: DailyStudyMinutes
+    it_domain: ITDomain
+    notification_email: bool
+    notification_review_reminder: bool
