@@ -10,32 +10,27 @@ const VARIANT_CONFIG: Record<
     number: RatingValue;
     label: string;
     hoverClass: string;
-    flashClass: string;
   }
 > = {
   again: {
     number: 1,
     label: "Again",
     hoverClass: "hover:bg-red-50 hover:border-red-200 hover:text-red-700",
-    flashClass: "border-red-300",
   },
   hard: {
     number: 2,
     label: "Hard",
     hoverClass: "hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700",
-    flashClass: "border-amber-300",
   },
   good: {
     number: 3,
     label: "Good",
     hoverClass: "hover:bg-green-50 hover:border-green-200 hover:text-green-700",
-    flashClass: "border-green-300",
   },
   easy: {
     number: 4,
     label: "Easy",
     hoverClass: "hover:bg-zinc-100 hover:border-zinc-300 hover:text-zinc-900",
-    flashClass: "border-zinc-400",
   },
 };
 
@@ -44,15 +39,16 @@ type RatingButtonProps = {
   interval: string;
   onRate: () => void;
   disabled?: boolean;
+  isLoading?: boolean;
 };
 
-export function RatingButton({ variant, interval, onRate, disabled = false }: RatingButtonProps) {
+export function RatingButton({ variant, interval, onRate, disabled = false, isLoading = false }: RatingButtonProps) {
   const config = VARIANT_CONFIG[variant];
 
   return (
     <button
       type="button"
-      disabled={disabled}
+      disabled={disabled || isLoading}
       onClick={onRate}
       aria-label={`Rate as ${config.label}, next review in ${interval}`}
       className={`
@@ -63,11 +59,19 @@ export function RatingButton({ variant, interval, onRate, disabled = false }: Ra
         active:scale-[0.97]
         disabled:opacity-40 disabled:cursor-not-allowed
         ${config.hoverClass}
+        ${isLoading ? "opacity-60" : ""}
       `}
     >
-      <span className="absolute top-1 right-1.5 rounded bg-zinc-100 px-1.5 py-px text-[10px] font-semibold text-zinc-500 leading-none">
-        {config.number}
-      </span>
+      {isLoading ? (
+        <svg className="absolute top-1 right-1.5 size-3.5 animate-spin text-zinc-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+      ) : (
+        <span className="absolute top-1 right-1.5 rounded bg-zinc-100 px-1.5 py-px text-[10px] font-semibold text-zinc-500 leading-none">
+          {config.number}
+        </span>
+      )}
 
       <span className="text-sm font-medium">{config.label}</span>
 

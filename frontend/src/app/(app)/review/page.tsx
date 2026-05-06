@@ -34,12 +34,15 @@ export default function ReviewPage() {
   const isRatingInProgress = useReviewStore((s) => s.isRatingInProgress);
   const revealedAt = useReviewStore((s) => s.revealedAt);
   const lastRating = useReviewStore((s) => s.lastRating);
+  const activeRating = useReviewStore((s) => s.activeRating);
   const setRatingInProgress = useReviewStore((s) => s.setRatingInProgress);
   const setLastRating = useReviewStore((s) => s.setLastRating);
+  const setActiveRating = useReviewStore((s) => s.setActiveRating);
+  const setRevealedAt = useReviewStore((s) => s.setRevealedAt);
   const nextCard = useReviewStore((s) => s.nextCard);
 
   const toast = useToast();
-  const ratingMutation = useRatingMutation(queueMode);
+  const { mutateAsync: rateCardMutate } = useRatingMutation(queueMode);
 
   const queueStatsQuery = useQueueStats();
   const dueCount = queueStatsQuery.data?.due_count ?? 0;
@@ -62,7 +65,7 @@ export default function ReviewPage() {
   }, [resetSession]);
 
   const handleRate = useCallback(
-    (rating: RatingValue) => {
+    async (rating: RatingValue) => {
       if (isRatingInProgress) return;
 
       const currentCard = sessionCards[currentCardIndex];
@@ -72,34 +75,32 @@ export default function ReviewPage() {
 
       setRatingInProgress(true);
       setLastRating(rating);
+      setActiveRating(rating);
 
-      ratingMutation.mutate(
-        {
+      try {
+        await rateCardMutate({
           cardId: currentCard.id,
           data: {
             rating,
             response_time_ms: responseTimeMs,
           },
-        },
-        {
-          onSuccess: () => {
-            nextCard();
-          },
-          onError: (error) => {
-            const apiError = error as { status?: number };
-            if (apiError.status === 422) {
-              if (process.env.NODE_ENV === "development") {
-                console.log("[Review] Card not due, skipping to next card");
-              }
-              nextCard();
-              return;
-            }
-            toast.error("Failed to save rating. Please try again.");
-            setRatingInProgress(false);
-            setLastRating(null);
-          },
-        },
-      );
+        });
+        nextCard();
+      } catch (error) {
+        const apiError = error as { status?: number };
+        if (apiError.status === 422) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[Review] Card not due, skipping to next card");
+          }
+          nextCard();
+          return;
+        }
+        toast.error("Failed to save rating. Please try again.");
+        setRatingInProgress(false);
+        setLastRating(null);
+        setActiveRating(null);
+        setRevealedAt(Date.now());
+      }
     },
     [
       isRatingInProgress,
@@ -108,7 +109,9 @@ export default function ReviewPage() {
       revealedAt,
       setRatingInProgress,
       setLastRating,
-      ratingMutation,
+      setActiveRating,
+      setRevealedAt,
+      rateCardMutate,
       nextCard,
       toast,
     ],
@@ -203,6 +206,7 @@ export default function ReviewPage() {
           onRate={handleRate}
           isRatingInProgress={isRatingInProgress}
           lastRating={lastRating}
+          activeRating={activeRating}
           intervals={EXAMPLE_INTERVALS}
         />
       )}

@@ -24,6 +24,7 @@ type ReviewCardProps = {
   onRate: (rating: RatingValue) => void;
   isRatingInProgress: boolean;
   lastRating: number | null;
+  activeRating: number | null;
   intervals: Record<string, string>;
 };
 
@@ -52,6 +53,7 @@ export function ReviewCard({
   onRate,
   isRatingInProgress,
   lastRating,
+  activeRating,
   intervals,
 }: ReviewCardProps) {
   const [flashClass, setFlashClass] = useState("");
@@ -162,17 +164,20 @@ export function ReviewCard({
             className="mt-6"
           >
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {RATING_VARIANTS.map((variant) => (
-                <RatingButton
-                  key={variant}
-                  variant={variant}
-                  interval={intervals[variant] ?? ""}
-                  onRate={() => onRate(
-                    variant === "again" ? 1 : variant === "hard" ? 2 : variant === "good" ? 3 : 4
-                  )}
-                  disabled={isRatingInProgress}
-                />
-              ))}
+              {RATING_VARIANTS.map((variant) => {
+                const ratingNumber =
+                  variant === "again" ? 1 : variant === "hard" ? 2 : variant === "good" ? 3 : 4;
+                return (
+                  <RatingButton
+                    key={variant}
+                    variant={variant}
+                    interval={intervals[variant] ?? ""}
+                    onRate={() => onRate(ratingNumber)}
+                    disabled={isRatingInProgress}
+                    isLoading={activeRating === ratingNumber}
+                  />
+                );
+              })}
             </div>
           </div>
         </div>

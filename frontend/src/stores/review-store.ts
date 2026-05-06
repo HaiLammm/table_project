@@ -15,6 +15,7 @@ type ReviewStore = {
   isRatingInProgress: boolean;
   lastRating: number | null;
   revealedAt: number | null;
+  activeRating: number | null;
 
   setSessionCards: (cards: SessionCard[]) => void;
   revealCard: () => void;
@@ -23,6 +24,8 @@ type ReviewStore = {
   resetSession: () => void;
   setRatingInProgress: (inProgress: boolean) => void;
   setLastRating: (rating: number | null) => void;
+  setActiveRating: (rating: number | null) => void;
+  setRevealedAt: (timestamp: number | null) => void;
 };
 
 export const useReviewStore = create<ReviewStore>((set) => ({
@@ -37,6 +40,7 @@ export const useReviewStore = create<ReviewStore>((set) => ({
   isRatingInProgress: false,
   lastRating: null,
   revealedAt: null,
+  activeRating: null,
 
   setSessionCards: (cards) =>
     set({
@@ -47,6 +51,7 @@ export const useReviewStore = create<ReviewStore>((set) => ({
       isRatingInProgress: false,
       lastRating: null,
       revealedAt: null,
+      activeRating: null,
     }),
 
   revealCard: () => set({ isRevealed: true, revealedAt: Date.now() }),
@@ -58,6 +63,7 @@ export const useReviewStore = create<ReviewStore>((set) => ({
       showJpDefinition: false,
       isRatingInProgress: false,
       lastRating: null,
+      activeRating: null,
     })),
 
   toggleJpDefinition: () => set((state) => ({ showJpDefinition: !state.showJpDefinition })),
@@ -71,9 +77,14 @@ export const useReviewStore = create<ReviewStore>((set) => ({
       isRatingInProgress: false,
       lastRating: null,
       revealedAt: null,
+      activeRating: null,
     }),
 
   setRatingInProgress: (inProgress) => set({ isRatingInProgress: inProgress }),
 
   setLastRating: (rating) => set({ lastRating: rating }),
+
+  setActiveRating: (rating) => set({ activeRating: rating }),
+
+  setRevealedAt: (timestamp) => set({ revealedAt: timestamp }),
 }));

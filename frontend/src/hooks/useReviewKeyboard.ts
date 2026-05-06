@@ -17,7 +17,11 @@ export function useReviewKeyboard(onRate?: (rating: RatingValue) => void) {
   useEffect(() => {
     if (sessionCards.length === 0) return;
 
+    let mounted = true;
+
     function handleKeyDown(e: KeyboardEvent) {
+      if (!mounted) return;
+
       if (e.code === "Space" && !isRevealed) {
         e.preventDefault();
         revealCard();
@@ -55,6 +59,9 @@ export function useReviewKeyboard(onRate?: (rating: RatingValue) => void) {
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      mounted = false;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, [sessionCards.length, isRevealed, isRatingInProgress, revealCard, toggleJpDefinition]);
 }

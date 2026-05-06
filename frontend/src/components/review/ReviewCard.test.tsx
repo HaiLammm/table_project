@@ -85,6 +85,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -111,6 +112,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -134,6 +136,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -165,6 +168,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -185,6 +189,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -205,6 +210,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -225,6 +231,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -265,6 +272,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
@@ -290,6 +298,7 @@ describe("ReviewCard", () => {
           onRate={vi.fn()}
           isRatingInProgress={false}
           lastRating={null}
+          activeRating={null}
           intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
