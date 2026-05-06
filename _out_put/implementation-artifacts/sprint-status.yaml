@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-05"
-last_updated: "2026-05-06"  # story 4-2 in progress
+last_updated: "2026-05-07"  # story 4-3 ready-for-dev (create-story)
 project: table_project
 project_key: NOKEY
 tracking_system: file-system
@@ -75,7 +75,7 @@ development_status:
   epic-4: in-progress
   4-1-srs-data-model-fsrs-integration: done
   4-2-reviewcard-component-card-reveal-flow: review
-  4-3-ratingbutton-component-card-rating: backlog
+  4-3-ratingbutton-component-card-rating: review
   4-4-review-session-flow-keyboard-navigation: backlog
   4-5-diagnostic-micro-insertions: backlog
   4-6-session-end-intelligence-summary: backlog

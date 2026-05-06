@@ -1,16 +1,26 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 
 import { CatchUpBanner, QueueHeader, ReviewCard } from "@/components/review";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/components/ui/toast";
 import { useDueCards } from "@/hooks/useDueCards";
 import { useQueueStats } from "@/hooks/useQueueStats";
+import { useRatingMutation } from "@/hooks/useRatingMutation";
 import { useReviewKeyboard } from "@/hooks/useReviewKeyboard";
 import { useReviewStore } from "@/stores/review-store";
+import type { RatingValue } from "@/types/srs";
+
+const EXAMPLE_INTERVALS: Record<string, string> = {
+  again: "<1m",
+  hard: "6m",
+  good: "1d",
+  easy: "4d",
+};
 
 export default function ReviewPage() {
   const queueMode = useReviewStore((s) => s.queueMode);
@@ -21,6 +31,15 @@ export default function ReviewPage() {
   const sessionCards = useReviewStore((s) => s.sessionCards);
   const setSessionCards = useReviewStore((s) => s.setSessionCards);
   const resetSession = useReviewStore((s) => s.resetSession);
+  const isRatingInProgress = useReviewStore((s) => s.isRatingInProgress);
+  const revealedAt = useReviewStore((s) => s.revealedAt);
+  const lastRating = useReviewStore((s) => s.lastRating);
+  const setRatingInProgress = useReviewStore((s) => s.setRatingInProgress);
+  const setLastRating = useReviewStore((s) => s.setLastRating);
+  const nextCard = useReviewStore((s) => s.nextCard);
+
+  const toast = useToast();
+  const ratingMutation = useRatingMutation(queueMode);
 
   const queueStatsQuery = useQueueStats();
   const dueCount = queueStatsQuery.data?.due_count ?? 0;
@@ -42,7 +61,60 @@ export default function ReviewPage() {
     };
   }, [resetSession]);
 
-  useReviewKeyboard();
+  const handleRate = useCallback(
+    (rating: RatingValue) => {
+      if (isRatingInProgress) return;
+
+      const currentCard = sessionCards[currentCardIndex];
+      if (!currentCard) return;
+
+      const responseTimeMs = revealedAt != null ? Date.now() - revealedAt : null;
+
+      setRatingInProgress(true);
+      setLastRating(rating);
+
+      ratingMutation.mutate(
+        {
+          cardId: currentCard.id,
+          data: {
+            rating,
+            response_time_ms: responseTimeMs,
+          },
+        },
+        {
+          onSuccess: () => {
+            nextCard();
+          },
+          onError: (error) => {
+            const apiError = error as { status?: number };
+            if (apiError.status === 422) {
+              if (process.env.NODE_ENV === "development") {
+                console.log("[Review] Card not due, skipping to next card");
+              }
+              nextCard();
+              return;
+            }
+            toast.error("Failed to save rating. Please try again.");
+            setRatingInProgress(false);
+            setLastRating(null);
+          },
+        },
+      );
+    },
+    [
+      isRatingInProgress,
+      sessionCards,
+      currentCardIndex,
+      revealedAt,
+      setRatingInProgress,
+      setLastRating,
+      ratingMutation,
+      nextCard,
+      toast,
+    ],
+  );
+
+  useReviewKeyboard(handleRate);
 
   if (queueStatsQuery.isLoading) {
     return (
@@ -128,6 +200,10 @@ export default function ReviewPage() {
           totalCards={sessionCards.length}
           isRevealed={isRevealed}
           showJpDefinition={showJpDefinition}
+          onRate={handleRate}
+          isRatingInProgress={isRatingInProgress}
+          lastRating={lastRating}
+          intervals={EXAMPLE_INTERVALS}
         />
       )}
     </section>

@@ -1,7 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { SessionCard } from "@/types/srs";
 import type { VocabularyDefinition } from "@/types/vocabulary";
+import { RatingButton } from "./RatingButton";
+import type { RatingValue } from "@/types/srs";
+
+const RATING_VARIANTS = ["again", "hard", "good", "easy"] as const;
+
+const FLASH_BORDER_CLASSES: Record<string, string> = {
+  "1": "border-red-300",
+  "2": "border-amber-300",
+  "3": "border-green-300",
+  "4": "border-zinc-400",
+};
 
 type ReviewCardProps = {
   card: SessionCard;
@@ -9,6 +21,10 @@ type ReviewCardProps = {
   totalCards: number;
   isRevealed: boolean;
   showJpDefinition: boolean;
+  onRate: (rating: RatingValue) => void;
+  isRatingInProgress: boolean;
+  lastRating: number | null;
+  intervals: Record<string, string>;
 };
 
 function getJapaneseDefinition(definitions: VocabularyDefinition[]): VocabularyDefinition | undefined {
@@ -33,7 +49,12 @@ export function ReviewCard({
   totalCards,
   isRevealed,
   showJpDefinition,
+  onRate,
+  isRatingInProgress,
+  lastRating,
+  intervals,
 }: ReviewCardProps) {
+  const [flashClass, setFlashClass] = useState("");
   const termText = card.term?.term ?? "Loading...";
   const metadataLine = buildMetadataLine(card);
   const jpDef = card.term ? getJapaneseDefinition(card.term.definitions) : undefined;
@@ -44,12 +65,26 @@ export function ReviewCard({
   const examples = enDef?.examples ?? [];
   const sessionLabel = `${currentIndex + 1}/${totalCards}`;
 
+  useEffect(() => {
+    if (lastRating == null) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) return;
+
+    const flashColor = FLASH_BORDER_CLASSES[String(lastRating)];
+    if (!flashColor) return;
+
+    setFlashClass(flashColor);
+    const timer = setTimeout(() => setFlashClass(""), 100);
+    return () => clearTimeout(timer);
+  }, [lastRating]);
+
   return (
     <article
       role="article"
       aria-label={`Vocabulary card: ${termText}`}
       tabIndex={0}
-      className="relative w-full max-w-2xl bg-zinc-100 border border-zinc-200 rounded-[14px] p-6 sm:p-8 lg:p-10 text-center transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+      className={`relative w-full max-w-2xl bg-zinc-100 border border-zinc-200 rounded-[14px] p-6 sm:p-8 lg:p-10 text-center transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 ${flashClass}`}
     >
       <div className="absolute top-4 right-5">
         <span className="text-xs font-medium text-text-muted">{sessionLabel}</span>
@@ -124,9 +159,21 @@ export function ReviewCard({
           <div
             role="group"
             aria-label="Rate your recall"
-            className="mt-6 min-h-[2.75rem] rounded-lg border border-dashed border-zinc-300 bg-zinc-50/50 flex items-center justify-center"
+            className="mt-6"
           >
-            <span className="text-xs text-text-muted">Rating buttons will appear here</span>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {RATING_VARIANTS.map((variant) => (
+                <RatingButton
+                  key={variant}
+                  variant={variant}
+                  interval={intervals[variant] ?? ""}
+                  onRate={() => onRate(
+                    variant === "again" ? 1 : variant === "hard" ? 2 : variant === "good" ? 3 : 4
+                  )}
+                  disabled={isRatingInProgress}
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}

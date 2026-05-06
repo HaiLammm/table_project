@@ -30,15 +30,20 @@ export interface QueueStatsResponse {
   retention_rate?: number | null;
 }
 
+export type RatingValue = 1 | 2 | 3 | 4;
+
 export interface ReviewRequest {
-  rating: "again" | "hard" | "good" | "easy";
-  elapsed_ms: number;
+  rating: RatingValue;
+  response_time_ms: number | null;
+  session_id?: string | null;
 }
 
 export interface ReviewResponse {
   id: number;
   due_at: string;
   fsrs_state: Record<string, unknown>;
+  next_due_at: string;
+  interval_display: string;
 }
 
 export interface SessionCard extends SrsCard {

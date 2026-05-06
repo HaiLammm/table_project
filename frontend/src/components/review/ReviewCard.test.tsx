@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReviewCard } from "./ReviewCard";
 import type { SessionCard } from "@/types/srs";
@@ -82,6 +82,10 @@ describe("ReviewCard", () => {
           totalCards={24}
           isRevealed={false}
           showJpDefinition={false}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -104,6 +108,10 @@ describe("ReviewCard", () => {
           totalCards={24}
           isRevealed={false}
           showJpDefinition={false}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -114,7 +122,7 @@ describe("ReviewCard", () => {
     expect(article?.getAttribute("tabindex")).toBe("0");
   });
 
-  it("renders revealed state with definition, IPA, examples, CEFR badge, and rating placeholder", async () => {
+  it("renders revealed state with definition, IPA, examples, CEFR badge, and rating buttons", async () => {
     await act(async () => {
       root.render(
         <ReviewCard
@@ -123,6 +131,10 @@ describe("ReviewCard", () => {
           totalCards={24}
           isRevealed={true}
           showJpDefinition={false}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -135,7 +147,10 @@ describe("ReviewCard", () => {
       "The protocol was updated to improve security.",
     );
     expect(container.textContent).toContain("B2");
-    expect(container.textContent).toContain("Rating buttons will appear here");
+    expect(container.textContent).toContain("Again");
+    expect(container.textContent).toContain("Hard");
+    expect(container.textContent).toContain("Good");
+    expect(container.textContent).toContain("Easy");
   });
 
   it("does not show Space hint when revealed", async () => {
@@ -147,6 +162,10 @@ describe("ReviewCard", () => {
           totalCards={24}
           isRevealed={true}
           showJpDefinition={false}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -163,6 +182,10 @@ describe("ReviewCard", () => {
           totalCards={24}
           isRevealed={true}
           showJpDefinition={true}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -179,6 +202,10 @@ describe("ReviewCard", () => {
           totalCards={24}
           isRevealed={false}
           showJpDefinition={true}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -195,6 +222,10 @@ describe("ReviewCard", () => {
           totalCards={24}
           isRevealed={true}
           showJpDefinition={false}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -231,6 +262,10 @@ describe("ReviewCard", () => {
           totalCards={1}
           isRevealed={true}
           showJpDefinition={false}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
@@ -252,6 +287,10 @@ describe("ReviewCard", () => {
           totalCards={1}
           isRevealed={false}
           showJpDefinition={false}
+          onRate={vi.fn()}
+          isRatingInProgress={false}
+          lastRating={null}
+          intervals={{ again: "<1m", hard: "6m", good: "1d", easy: "4d" }}
         />,
       );
     });
