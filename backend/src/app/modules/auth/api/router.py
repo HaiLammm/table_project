@@ -1,14 +1,22 @@
+from collections.abc import AsyncGenerator
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from arq import create_pool
+from arq.connections import ArqRedis, RedisSettings
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from svix.webhooks import Webhook, WebhookVerificationError
 
 from src.app.core.config import settings
+from src.app.core.exceptions import build_error_payload
 from src.app.db.session import get_async_session
 from src.app.modules.auth.api.dependencies import get_current_user as get_authenticated_user
 from src.app.modules.auth.api.schemas import (
+    AccountDeletionRequest,
+    DataExportResponse,
+    DataExportStatusResponse,
     UserPreferencesResponse,
     UserPreferencesUpdateRequest,
     UserResponse,
@@ -16,8 +24,10 @@ from src.app.modules.auth.api.schemas import (
     WebhookSyncResponse,
 )
 from src.app.modules.auth.application.services import (
+    AccountDeletionService,
     ClerkEmailAddress,
     ClerkUserSyncPayload,
+    DataExportService,
     UserPreferencesService,
     UserPreferencesUpdateInput,
     UserSyncService,
@@ -47,12 +57,40 @@ def get_user_preferences_service(
     return UserPreferencesService(SqlAlchemyUserRepository(session))
 
 
+def get_data_export_service(
+    session: SessionDependency,
+) -> DataExportService:
+    repository = SqlAlchemyUserRepository(session)
+    return DataExportService(repository, repository, repository)
+
+
+def get_account_deletion_service(
+    session: SessionDependency,
+) -> AccountDeletionService:
+    repository = SqlAlchemyUserRepository(session)
+    return AccountDeletionService(repository, repository, repository)
+
+
+async def get_arq_pool() -> AsyncGenerator[ArqRedis, None]:
+    pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    try:
+        yield pool
+    finally:
+        await pool.aclose(close_connection_pool=True)
+
+
 CurrentUserDependency = Annotated[User, Depends(get_authenticated_user)]
 UserSyncServiceDependency = Annotated[UserSyncService, Depends(get_user_sync_service)]
 UserPreferencesServiceDependency = Annotated[
     UserPreferencesService,
     Depends(get_user_preferences_service),
 ]
+DataExportServiceDependency = Annotated[DataExportService, Depends(get_data_export_service)]
+AccountDeletionServiceDependency = Annotated[
+    AccountDeletionService,
+    Depends(get_account_deletion_service),
+]
+ArqDependency = Annotated[ArqRedis, Depends(get_arq_pool)]
 
 
 def _require_user_id(current_user: User) -> int:
@@ -100,6 +138,94 @@ async def update_current_user_preferences(
         ),
     )
     return UserPreferencesResponse.model_validate(preferences)
+
+
+@router.post("/users/me/data-export", response_model=DataExportResponse, tags=["users"])
+async def request_current_user_data_export(
+    current_user: CurrentUserDependency,
+    data_export_service: DataExportServiceDependency,
+    arq_pool: ArqDependency,
+) -> DataExportResponse:
+    data_export = await data_export_service.request_export(_require_user_id(current_user))
+    if data_export.id is None:
+        msg = "Data export was not created"
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=build_error_payload("data_export_create_failed", msg),
+        )
+
+    await arq_pool.enqueue_job("process_data_export", data_export.id)
+
+    return DataExportResponse(
+        export_id=data_export.id,
+        status=data_export.status,
+        created_at=data_export.created_at,
+    )
+
+
+@router.get(
+    "/users/me/data-export/{export_id}",
+    response_model=DataExportStatusResponse,
+    tags=["users"],
+    name="read_current_user_data_export_status",
+)
+async def read_current_user_data_export_status(
+    export_id: int,
+    request: Request,
+    current_user: CurrentUserDependency,
+    data_export_service: DataExportServiceDependency,
+    download: bool = Query(default=False),
+) -> DataExportStatusResponse | FileResponse:
+    data_export = await data_export_service.get_export_for_user(
+        user_id=_require_user_id(current_user),
+        export_id=export_id,
+    )
+
+    if download:
+        if data_export.status != "ready" or data_export.file_path is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=build_error_payload(
+                    "data_export_not_ready",
+                    "Data export is not ready for download",
+                ),
+            )
+
+        return FileResponse(
+            path=data_export.file_path,
+            media_type="application/zip",
+            filename=f"data-export-{data_export.id}.zip",
+        )
+
+    download_url = None
+    if data_export.status == "ready" and data_export.file_path is not None:
+        status_url = request.url_for(
+            "read_current_user_data_export_status",
+            export_id=str(export_id),
+        )
+        download_url = f"{status_url}?download=true"
+
+    return DataExportStatusResponse(
+        export_id=data_export.id or export_id,
+        status=data_export.status,
+        created_at=data_export.created_at,
+        expires_at=data_export.expires_at,
+        download_url=download_url,
+    )
+
+
+@router.delete(
+    "/users/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["users"],
+)
+async def delete_current_user_account(
+    payload: AccountDeletionRequest,
+    current_user: CurrentUserDependency,
+    account_deletion_service: AccountDeletionServiceDependency,
+) -> Response:
+    await account_deletion_service.delete_account(current_user, payload.confirmation_email)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/auth/webhook", response_model=WebhookSyncResponse, tags=["auth"])

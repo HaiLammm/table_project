@@ -34,3 +34,13 @@ class UserPreferences:
     id: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+@dataclass(slots=True, kw_only=True)
+class DataExport:
+    user_id: int
+    status: str
+    id: int | None = None
+    file_path: str | None = None
+    created_at: datetime | None = None
+    expires_at: datetime | None = None

@@ -24,3 +24,12 @@ class UserNotFoundError(AuthenticationError):
 
 class InvalidUserPreferencesError(AuthDomainError):
     code = "invalid_user_preferences"
+
+
+class DataExportNotFoundError(AuthDomainError):
+    status_code = 404
+    code = "data_export_not_found"
+
+
+class AccountDeletionError(AuthDomainError):
+    code = "account_deletion_error"

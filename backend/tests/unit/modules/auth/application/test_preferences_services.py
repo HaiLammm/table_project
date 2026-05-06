@@ -46,6 +46,10 @@ class InMemoryUserPreferencesRepository(UserPreferencesRepository):
         self._existing_preferences = saved_preferences
         return saved_preferences
 
+    async def delete_by_user_id(self, user_id: int) -> None:
+        if self._existing_preferences and self._existing_preferences.user_id == user_id:
+            self._existing_preferences = None
+
 
 async def test_get_preferences_returns_defaults_when_missing() -> None:
     repository = InMemoryUserPreferencesRepository()

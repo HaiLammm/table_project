@@ -1,10 +1,25 @@
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
 
+import httpx
 import structlog
 
-from src.app.modules.auth.domain.entities import User, UserPreferences
-from src.app.modules.auth.domain.exceptions import AuthenticationError, InvalidUserPreferencesError
-from src.app.modules.auth.domain.interfaces import UserPreferencesRepository, UserRepository
+from src.app.core.config import settings
+from src.app.modules.auth.domain.entities import DataExport, User, UserPreferences
+from src.app.modules.auth.domain.exceptions import (
+    AccountDeletionError,
+    AuthenticationError,
+    DataExportNotFoundError,
+    InvalidUserPreferencesError,
+    UserNotFoundError,
+)
+from src.app.modules.auth.domain.interfaces import (
+    DataExportRepository,
+    UserPreferencesRepository,
+    UserRepository,
+)
 from src.app.modules.auth.domain.value_objects import (
     ALLOWED_DAILY_STUDY_MINUTES,
     DEFAULT_DAILY_STUDY_MINUTES,
@@ -50,6 +65,19 @@ class UserPreferencesUpdateInput:
     it_domain: ITDomain | None = None
     notification_email: bool | None = None
     notification_review_reminder: bool | None = None
+
+
+def build_default_user_preferences(user_id: int) -> UserPreferences:
+    return UserPreferences(
+        user_id=user_id,
+        learning_goal=DEFAULT_LEARNING_GOAL,
+        english_level=DEFAULT_ENGLISH_LEVEL,
+        japanese_level=DEFAULT_JAPANESE_LEVEL,
+        daily_study_minutes=DEFAULT_DAILY_STUDY_MINUTES,
+        it_domain=DEFAULT_IT_DOMAIN,
+        notification_email=DEFAULT_NOTIFICATION_EMAIL,
+        notification_review_reminder=DEFAULT_NOTIFICATION_REVIEW_REMINDER,
+    )
 
 
 class UserSyncService:
@@ -143,7 +171,7 @@ class UserPreferencesService:
         if preferences is not None:
             return preferences
 
-        return self._build_default_preferences(user_id)
+        return build_default_user_preferences(user_id)
 
     async def update_preferences(
         self,
@@ -177,18 +205,6 @@ class UserPreferencesService:
         )
         return await self._user_preferences_repository.upsert(next_preferences)
 
-    def _build_default_preferences(self, user_id: int) -> UserPreferences:
-        return UserPreferences(
-            user_id=user_id,
-            learning_goal=DEFAULT_LEARNING_GOAL,
-            english_level=DEFAULT_ENGLISH_LEVEL,
-            japanese_level=DEFAULT_JAPANESE_LEVEL,
-            daily_study_minutes=DEFAULT_DAILY_STUDY_MINUTES,
-            it_domain=DEFAULT_IT_DOMAIN,
-            notification_email=DEFAULT_NOTIFICATION_EMAIL,
-            notification_review_reminder=DEFAULT_NOTIFICATION_REVIEW_REMINDER,
-        )
-
     def _validate_daily_study_minutes(self, daily_study_minutes: int | None) -> None:
         if daily_study_minutes is None:
             return
@@ -202,3 +218,217 @@ class UserPreferencesService:
                     "allowed_values": sorted(ALLOWED_DAILY_STUDY_MINUTES),
                 },
             )
+
+
+class DataExportService:
+    def __init__(
+        self,
+        user_repository: UserRepository,
+        user_preferences_repository: UserPreferencesRepository,
+        data_export_repository: DataExportRepository,
+    ) -> None:
+        self._user_repository = user_repository
+        self._user_preferences_repository = user_preferences_repository
+        self._data_export_repository = data_export_repository
+
+    async def request_export(self, user_id: int) -> DataExport:
+        user = await self._user_repository.get_by_id(user_id)
+        if user is None:
+            msg = "User not found"
+            raise UserNotFoundError(msg)
+
+        return await self._data_export_repository.create_data_export(
+            DataExport(user_id=user_id, status="pending"),
+        )
+
+    async def get_export_for_user(self, user_id: int, export_id: int) -> DataExport:
+        data_export = await self.get_export_by_id(export_id)
+        if data_export.user_id != user_id:
+            msg = "Data export not found"
+            raise DataExportNotFoundError(msg)
+
+        return await self._expire_if_needed(data_export)
+
+    async def get_export_by_id(self, export_id: int) -> DataExport:
+        data_export = await self._data_export_repository.get_data_export_by_id(export_id)
+        if data_export is None:
+            msg = "Data export not found"
+            raise DataExportNotFoundError(msg)
+
+        return data_export
+
+    async def mark_processing(self, export_id: int) -> DataExport:
+        data_export = await self.get_export_by_id(export_id)
+        return await self._data_export_repository.update_data_export(
+            DataExport(
+                id=data_export.id,
+                user_id=data_export.user_id,
+                status="processing",
+                file_path=data_export.file_path,
+                created_at=data_export.created_at,
+                expires_at=data_export.expires_at,
+            ),
+        )
+
+    async def mark_ready(self, export_id: int, file_path: str, expires_at: datetime) -> DataExport:
+        data_export = await self.get_export_by_id(export_id)
+        return await self._data_export_repository.update_data_export(
+            DataExport(
+                id=data_export.id,
+                user_id=data_export.user_id,
+                status="ready",
+                file_path=file_path,
+                created_at=data_export.created_at,
+                expires_at=expires_at,
+            ),
+        )
+
+    async def mark_failed(self, export_id: int) -> DataExport:
+        data_export = await self.get_export_by_id(export_id)
+        return await self._data_export_repository.update_data_export(
+            DataExport(
+                id=data_export.id,
+                user_id=data_export.user_id,
+                status="failed",
+                file_path=None,
+                created_at=data_export.created_at,
+                expires_at=None,
+            ),
+        )
+
+    async def collect_user_data(self, user_id: int) -> dict[str, Any]:
+        user = await self._user_repository.get_by_id(user_id)
+        if user is None:
+            msg = "User not found"
+            raise UserNotFoundError(msg)
+
+        preferences = await self._user_preferences_repository.get_by_user_id(user_id)
+        current_preferences = preferences or build_default_user_preferences(user_id)
+
+        return {
+            "profile": {
+                "id": user.id,
+                "clerk_id": user.clerk_id,
+                "email": user.email,
+                "display_name": user.display_name,
+                "tier": user.tier.value,
+                "created_at": self._serialize_datetime(user.created_at),
+                "updated_at": self._serialize_datetime(user.updated_at),
+            },
+            "preferences": {
+                "learning_goal": current_preferences.learning_goal.value,
+                "english_level": current_preferences.english_level.value,
+                "japanese_level": current_preferences.japanese_level.value,
+                "daily_study_minutes": current_preferences.daily_study_minutes,
+                "it_domain": current_preferences.it_domain.value,
+                "notification_email": current_preferences.notification_email,
+                "notification_review_reminder": current_preferences.notification_review_reminder,
+                "created_at": self._serialize_datetime(current_preferences.created_at),
+                "updated_at": self._serialize_datetime(current_preferences.updated_at),
+            },
+            "vocabulary_terms": [],
+            "review_history": [],
+            "learning_patterns": {},
+            "collections": [],
+            "diagnostics": {},
+        }
+
+    def build_export_path(self, user_id: int, export_id: int) -> Path:
+        return Path(settings.data_export_storage_path) / str(user_id) / f"{export_id}.zip"
+
+    def build_expiration(self, now: datetime | None = None) -> datetime:
+        baseline = now or datetime.now(UTC)
+        return baseline + timedelta(days=settings.data_export_ttl_days)
+
+    async def _expire_if_needed(self, data_export: DataExport) -> DataExport:
+        if data_export.status != "ready" or data_export.expires_at is None:
+            return data_export
+
+        if data_export.expires_at > datetime.now(UTC):
+            return data_export
+
+        export_path = Path(data_export.file_path) if data_export.file_path else None
+        if export_path and export_path.exists():
+            export_path.unlink()
+
+        return await self._data_export_repository.update_data_export(
+            DataExport(
+                id=data_export.id,
+                user_id=data_export.user_id,
+                status="expired",
+                file_path=None,
+                created_at=data_export.created_at,
+                expires_at=data_export.expires_at,
+            ),
+        )
+
+    def _serialize_datetime(self, value: datetime | None) -> str | None:
+        return value.isoformat() if value is not None else None
+
+
+class AccountDeletionService:
+    def __init__(
+        self,
+        user_repository: UserRepository,
+        user_preferences_repository: UserPreferencesRepository,
+        data_export_repository: DataExportRepository,
+    ) -> None:
+        self._user_repository = user_repository
+        self._user_preferences_repository = user_preferences_repository
+        self._data_export_repository = data_export_repository
+
+    async def delete_account(self, user: User, confirmation_email: str) -> None:
+        if user.id is None:
+            msg = "User not found"
+            raise UserNotFoundError(msg)
+
+        if confirmation_email.strip().casefold() != user.email.casefold():
+            msg = "Confirmation email does not match current user"
+            raise AccountDeletionError(msg)
+
+        existing_user = await self._user_repository.get_by_id(user.id)
+        if existing_user is None:
+            msg = "User not found"
+            raise UserNotFoundError(msg)
+
+        exports = await self._data_export_repository.list_data_exports_by_user_id(user.id)
+        for data_export in exports:
+            self._delete_export_file(data_export.file_path)
+
+        await self._data_export_repository.delete_data_exports_by_user_id(user.id)
+        await self._user_preferences_repository.delete_by_user_id(user.id)
+        await self._delete_clerk_user(existing_user.clerk_id)
+        await self._user_repository.delete_by_id(user.id)
+
+        logger.info("auth_account_deleted", user_id=user.id)
+
+    def _delete_export_file(self, file_path: str | None) -> None:
+        if not file_path:
+            return
+
+        export_path = Path(file_path)
+        if export_path.exists():
+            export_path.unlink()
+
+    async def _delete_clerk_user(self, clerk_user_id: str) -> None:
+        if not settings.clerk_secret_key:
+            msg = "Clerk secret key is not configured"
+            raise AccountDeletionError(msg)
+
+        url = f"https://api.clerk.com/v1/users/{clerk_user_id}"
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.delete(
+                    url,
+                    headers={"Authorization": f"Bearer {settings.clerk_secret_key}"},
+                )
+        except httpx.HTTPError as exc:
+            msg = "Failed to delete Clerk account"
+            raise AccountDeletionError(msg) from exc
+
+        if response.status_code in {200, 204, 404}:
+            return
+
+        msg = "Failed to delete Clerk account"
+        raise AccountDeletionError(msg, details={"status_code": response.status_code})

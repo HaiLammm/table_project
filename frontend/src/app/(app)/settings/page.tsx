@@ -2,7 +2,7 @@
 
 import { UserProfile } from "@clerk/nextjs";
 
-import { PreferencesForm } from "@/components/settings";
+import { DataExportButton, DeleteAccountDialog, PreferencesForm } from "@/components/settings";
 import {
   Card,
   CardContent,
@@ -49,6 +49,19 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <PreferencesForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Data &amp; Privacy</CardTitle>
+          <CardDescription>
+            Export your personal data or permanently remove your account when you need to exercise your privacy rights.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <DataExportButton />
+          <DeleteAccountDialog />
         </CardContent>
       </Card>
     </section>

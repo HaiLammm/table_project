@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +17,8 @@ class Settings(BaseSettings):
     clerk_secret_key: str = ""
     clerk_jwks_url: str = ""
     clerk_webhook_secret: str = ""
+    data_export_storage_path: Path = Path(__file__).resolve().parents[3] / "data" / "exports"
+    data_export_ttl_days: int = 7
 
     model_config = SettingsConfigDict(
         env_file=".env",

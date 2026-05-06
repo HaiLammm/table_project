@@ -8,6 +8,7 @@ type ToastItem = {
   id: number;
   message: string;
   tone: ToastTone;
+  persistent: boolean;
 };
 
 type ToastContextValue = {
@@ -19,10 +20,10 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 
 function getToastStyles(tone: ToastTone) {
   if (tone === "error") {
-    return "border-[color:color-mix(in_srgb,var(--error)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--error)_10%,var(--surface))] text-text-primary";
+    return "border-l-4 border-[color:color-mix(in_srgb,var(--error)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--error)_10%,var(--surface))] text-text-primary";
   }
 
-  return "border-[color:color-mix(in_srgb,var(--success)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--success)_10%,var(--surface))] text-text-primary";
+  return "border-l-4 border-[color:color-mix(in_srgb,var(--success)_35%,var(--border))] bg-[color:color-mix(in_srgb,var(--success)_10%,var(--surface))] text-text-primary";
 }
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -50,11 +51,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((currentToasts) => currentToasts.filter((toast) => toast.id !== id));
   }
 
-  function push(message: string, tone: ToastTone) {
+  function push(message: string, tone: ToastTone, persistent: boolean) {
     const id = nextToastId.current;
     nextToastId.current += 1;
 
-    setToasts((currentToasts) => [...currentToasts, { id, message, tone }]);
+    setToasts((currentToasts) => [...currentToasts, { id, message, tone, persistent }]);
+
+    if (persistent) {
+      return;
+    }
 
     const timer = setTimeout(() => {
       dismiss(id);
@@ -66,8 +71,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider
       value={{
-        success: (message) => push(message, "success"),
-        error: (message) => push(message, "error"),
+        success: (message) => push(message, "success", false),
+        error: (message) => push(message, "error", true),
       }}
     >
       {children}

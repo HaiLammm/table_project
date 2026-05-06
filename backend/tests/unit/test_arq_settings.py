@@ -13,5 +13,6 @@ def test_worker_settings_use_configured_redis_url() -> None:
 
 
 def test_worker_settings_register_placeholder_job() -> None:
-    assert len(WorkerSettings.functions) == 1
+    assert len(WorkerSettings.functions) == 2
     assert WorkerSettings.functions[0].name == "noop"
+    assert WorkerSettings.functions[1].name == "process_data_export"

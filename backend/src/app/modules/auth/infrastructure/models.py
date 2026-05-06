@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, text
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.app.db.base import Base, TimestampMixin
@@ -58,3 +60,29 @@ class UserPreferencesModel(TimestampMixin, Base):
         default=True,
         server_default=text("true"),
     )
+
+
+class DataExportModel(Base):
+    __tablename__ = "data_exports"
+    __table_args__ = (
+        Index("ix_data_exports_user_id", "user_id"),
+        Index("ix_data_exports_status", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="pending",
+        server_default=text("'pending'"),
+    )
+    file_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

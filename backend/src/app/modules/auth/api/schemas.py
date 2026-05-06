@@ -71,3 +71,21 @@ class UserPreferencesResponse(BaseModel):
     it_domain: ITDomain
     notification_email: bool
     notification_review_reminder: bool
+
+
+class DataExportResponse(BaseModel):
+    export_id: int
+    status: Literal["pending", "processing", "ready", "expired", "failed"]
+    created_at: datetime | None = None
+
+
+class DataExportStatusResponse(BaseModel):
+    export_id: int
+    status: Literal["pending", "processing", "ready", "expired", "failed"]
+    created_at: datetime | None = None
+    expires_at: datetime | None = None
+    download_url: str | None = None
+
+
+class AccountDeletionRequest(BaseModel):
+    confirmation_email: str = Field(min_length=1, max_length=255)

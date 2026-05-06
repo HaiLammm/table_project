@@ -15,6 +15,7 @@ class InMemoryUserRepository(UserRepository):
         self._existing_user = existing_user
         self.created_user: User | None = None
         self.updated_user: User | None = None
+        self.deleted_user_id: int | None = None
 
     async def get_by_clerk_id(self, clerk_id: str) -> User | None:
         if self._existing_user and self._existing_user.clerk_id == clerk_id:
@@ -51,6 +52,10 @@ class InMemoryUserRepository(UserRepository):
             updated_at=datetime.now(UTC),
         )
         return self.updated_user
+
+    async def delete_by_id(self, user_id: int) -> None:
+        self.deleted_user_id = user_id
+        self._existing_user = None
 
 
 async def test_sync_from_clerk_webhook_creates_user_from_primary_email() -> None:
