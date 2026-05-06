@@ -5,3 +5,9 @@ export const userKeys = {
   dataExport: () => [...userKeys.all, "data-export"] as const,
   dataExportStatus: (id: number) => [...userKeys.dataExport(), id, "status"] as const,
 };
+
+export const srsKeys = {
+  all: ["srs"] as const,
+  queueStats: () => [...srsKeys.all, "queue-stats"] as const,
+  queue: (mode: "full" | "catchup") => [...srsKeys.all, "queue", mode] as const,
+};

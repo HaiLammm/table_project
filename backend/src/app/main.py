@@ -8,6 +8,8 @@ from src.app.core.exceptions import build_error_payload
 from src.app.core.logging import configure_logging
 from src.app.modules.auth.api.router import router as auth_router
 from src.app.modules.auth.domain.exceptions import AuthDomainError
+from src.app.modules.srs.api.router import router as srs_router
+from src.app.modules.srs.domain.exceptions import SrsDomainError
 
 health_router = APIRouter()
 
@@ -34,6 +36,16 @@ def create_application() -> FastAPI:
     async def auth_domain_exception_handler(
         _request: Request,
         exc: AuthDomainError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=build_error_payload(exc.code, exc.message, exc.details),
+        )
+
+    @app.exception_handler(SrsDomainError)
+    async def srs_domain_exception_handler(
+        _request: Request,
+        exc: SrsDomainError,
     ) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
@@ -68,6 +80,7 @@ def create_application() -> FastAPI:
 
     app.include_router(health_router, prefix=settings.api_v1_prefix)
     app.include_router(auth_router, prefix=settings.api_v1_prefix)
+    app.include_router(srs_router, prefix=f"{settings.api_v1_prefix}/srs_cards")
     return app
 
 
