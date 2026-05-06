@@ -1,0 +1,109 @@
+# generated: 2026-05-05
+# last_updated: 2026-05-05
+# project: table_project
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: "{project-root}/_out_put/implementation-artifacts"
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: "2026-05-05"
+last_updated: "2026-05-06"  # story 1-3 ready for review
+project: table_project
+project_key: NOKEY
+tracking_system: file-system
+story_location: "{project-root}/_out_put/implementation-artifacts"
+
+development_status:
+  # Epic 1: Project Foundation & Developer Infrastructure
+  epic-1: in-progress
+  1-1-initialize-backend-scaffold: review
+  1-2-initialize-frontend-scaffold: review
+  1-3-app-shell-layout: review
+  1-4-cicd-pipeline-deployment-configuration: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: User Authentication, Onboarding & Profile
+  epic-2: backlog
+  2-1-user-registration-login-with-clerk: backlog
+  2-2-onboarding-survey-ai-learning-plan: backlog
+  2-3-user-profile-settings-management: backlog
+  2-4-data-export-account-deletion: backlog
+  2-5-warm-return-experience: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Vocabulary Management & Enrichment Pipeline
+  epic-3: backlog
+  3-1-vocabulary-data-model-pre-seeded-corpus: backlog
+  3-2-browse-search-vocabulary-corpus: backlog
+  3-3-view-vocabulary-term: backlog
+  3-4-add-vocabulary-term-manually: backlog
+  3-5-structured-vocabulary-request: backlog
+  3-6-csv-import-with-error-handling: backlog
+  3-7-llm-gateway-auto-enrichment-pipeline: backlog
+  3-8-command-palette: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Spaced Repetition Review Engine
+  epic-4: backlog
+  4-1-srs-data-model-fsrs-integration: backlog
+  4-2-reviewcard-component-card-reveal-flow: backlog
+  4-3-ratingbutton-component-card-rating: backlog
+  4-4-review-session-flow-keyboard-navigation: backlog
+  4-5-diagnostic-micro-insertions: backlog
+  4-6-session-end-intelligence-summary: backlog
+  4-7-upcoming-review-schedule: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Personal Collections
+  epic-5: backlog
+  5-1-collection-crud-data-model: backlog
+  5-2-add-remove-terms-from-collections: backlog
+  5-3-browse-collection-contents-detail-view: backlog
+  5-4-start-learning-session-from-collection: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Learning Diagnostics & Progress Dashboard
+  epic-6: backlog
+  6-1-diagnostic-signal-capture-pattern-detection: backlog
+  6-2-progress-dashboard-stats-metrics: backlog
+  6-3-activity-chart-calendar-views: backlog
+  6-4-diagnostic-insights-dashboard: backlog
+  6-5-retention-curves-vocabulary-growth: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Content Moderation, Subscription Gating & Admin Operations
+  epic-7: backlog
+  7-1-user-content-flagging-moderation-queue: backlog
+  7-2-subscription-tier-enforcement-upgrade-prompts: backlog
+  7-3-admin-operations-dashboard: backlog
+  7-4-admin-rate-limit-configuration-cost-alerts: backlog
+  7-5-admin-corpus-seeding-management: backlog
+  epic-7-retrospective: optional
