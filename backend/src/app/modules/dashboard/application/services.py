@@ -105,7 +105,8 @@ class DiagnosticsService:
 
 def _data_age_days(analytics: list[ReviewAnalyticsRow]) -> int:
     first_review_at = min(row["reviewed_at"] for row in analytics)
-    return (datetime.now(UTC).date() - first_review_at.date()).days + 1
+    age = (datetime.now(UTC).date() - first_review_at.date()).days + 1
+    return max(age, 1)
 
 
 def _confidence_score(data_age_days: int) -> float:

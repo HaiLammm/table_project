@@ -11,8 +11,10 @@ from src.app.modules.srs.domain.entities import (
     DueCardsPage,
     QueueStats,
     Review,
+    ScheduleBucket,
     SessionReviewRow,
     SrsCard,
+    UpcomingSchedule,
 )
 from src.app.modules.srs.domain.exceptions import (
     CardNotFoundError,
@@ -446,3 +448,60 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             )
         )
         return int(result.scalar_one() or 0)
+
+    async def count_due_cards_by_buckets(
+        self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
+    ) -> UpcomingSchedule:
+        today_result = await self._session.execute(
+            select(func.count(SrsCardModel.id)).where(
+                SrsCardModel.user_id == user_id,
+                SrsCardModel.due_at <= today_end,
+            )
+        )
+        today_count = int(today_result.scalar_one() or 0)
+
+        tomorrow_result = await self._session.execute(
+            select(func.count(SrsCardModel.id)).where(
+                SrsCardModel.user_id == user_id,
+                SrsCardModel.due_at > today_end,
+                SrsCardModel.due_at <= tomorrow_end,
+            )
+        )
+        tomorrow_count = int(tomorrow_result.scalar_one() or 0)
+
+        this_week_result = await self._session.execute(
+            select(func.count(SrsCardModel.id)).where(
+                SrsCardModel.user_id == user_id,
+                SrsCardModel.due_at > tomorrow_end,
+                SrsCardModel.due_at <= week_end,
+            )
+        )
+        this_week_count = int(this_week_result.scalar_one() or 0)
+
+        avg_result = await self._session.execute(
+            select(func.avg(SrsReviewModel.response_time_ms)).where(
+                SrsReviewModel.user_id == user_id,
+                SrsReviewModel.response_time_ms.is_not(None),
+            ),
+        )
+        avg_response_time_ms = avg_result.scalar_one_or_none()
+
+        def calc_minutes(count: int) -> int:
+            if count == 0:
+                return 0
+            if avg_response_time_ms is not None:
+                return ceil(count * float(avg_response_time_ms) / 60000)
+            return ceil(count * 10 / 60)
+
+        logger.info("srs_schedule_buckets_loaded", user_id=user_id)
+        return UpcomingSchedule(
+            today=ScheduleBucket(
+                due_count=today_count, estimated_minutes=calc_minutes(today_count)
+            ),
+            tomorrow=ScheduleBucket(
+                due_count=tomorrow_count, estimated_minutes=calc_minutes(tomorrow_count)
+            ),
+            this_week=ScheduleBucket(
+                due_count=this_week_count, estimated_minutes=calc_minutes(this_week_count)
+            ),
+        )

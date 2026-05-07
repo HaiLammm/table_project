@@ -244,4 +244,50 @@ describe("useReviewStore", () => {
     expect(state.isRevealed).toBe(false);
     expect(state.isRatingInProgress).toBe(false);
   });
+
+  it("does not show insight at index 0", () => {
+    useReviewStore.setState({
+      sessionCards: [makeCard(1), makeCard(2), makeCard(3)],
+      currentCardIndex: 0,
+      pendingInsights: [makeInsight(301, 5)],
+      isShowingInsight: false,
+      currentInsight: null,
+    });
+
+    useReviewStore.getState().showNextInsight();
+
+    const state = useReviewStore.getState();
+    expect(state.isShowingInsight).toBe(false);
+    expect(state.currentInsight).toBeNull();
+  });
+
+  it("does not show insight when already showing one", () => {
+    useReviewStore.setState({
+      sessionCards: [makeCard(1), makeCard(2), makeCard(3), makeCard(4), makeCard(5), makeCard(6)],
+      currentCardIndex: 5,
+      pendingInsights: [makeInsight(401, 5)],
+      isShowingInsight: true,
+      currentInsight: makeInsight(999, 5),
+    });
+
+    useReviewStore.getState().showNextInsight();
+
+    const state = useReviewStore.getState();
+    expect(state.isShowingInsight).toBe(true);
+    expect(state.currentInsight?.id).toBe(999);
+    expect(state.pendingInsights).toHaveLength(1);
+  });
+
+  it("dismissInsight is no-op when not showing insight", () => {
+    useReviewStore.setState({
+      isShowingInsight: false,
+      currentInsight: null,
+      insightsSeen: 0,
+    });
+
+    useReviewStore.getState().dismissInsight();
+
+    const state = useReviewStore.getState();
+    expect(state.insightsSeen).toBe(0);
+  });
 });

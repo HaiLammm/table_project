@@ -1,6 +1,6 @@
 # Story 4.5: Diagnostic Micro-Insertions
 
-Status: review
+Status: done
 
 ## Story
 
@@ -360,6 +360,66 @@ Recent commits show consistent patterns:
 - [Source: frontend/src/hooks/useReviewKeyboard.ts — current keyboard handlers]
 - [Source: frontend/src/app/(app)/review/page.tsx — review page orchestration]
 - [Source: frontend/src/components/review/SessionSummary.tsx — current summary component]
+
+## Review Findings
+
+### Decision-Needed
+
+- [x] [Review][Decision] **Time-of-day detection uses UTC instead of user-local time** [`services.py:157`] — Accepted as-is (B). No user timezone in current data model. Documented as known limitation.
+
+- [x] [Review][Decision] **`term_category` maps to `part_of_speech` — semantic mismatch** [`repository.py:126`] — Accepted as-is (A). `vocabulary_terms` has no `category` column. TODO: add category column later.
+
+- [x] [Review][Decision] **Progressive gating day-6 gap** [`services.py:111-116`] — Kept spec (A). `_confidence_score >= 7` → 0.8, day 6 edge case is 1 day, not worth a new tier.
+
+- [x] [Review][Decision] **category_specific_weakness uses flat 0.15 threshold instead of standard deviation** [`services.py:213-218`] — Kept 0.15 (B). Simpler, more predictable, less noisy with few categories.
+
+- [x] [Review][Decision] **`delivery_interval` conflates confidence with data maturity** [`entities.py:24-29`] — Accepted current (B). Confidence is always derived from data age, so interval is effectively data-maturity-driven.
+
+- [x] [Review][Decision] **Repository methods commit mid-operation, breaking unit-of-work pattern** [`repository.py:106,190`] — Resolved (A). `replace_insights` now uses `begin_nested()` savepoint. `mark_insight_seen` uses `ON CONFLICT DO NOTHING` which requires its own commit.
+
+### Patch
+
+- [x] [Review][Patch] **Race condition: mark_insight_seen check-then-insert** [`repository.py:91-106`] — Fixed: replaced check-then-insert with `pg_insert ... on_conflict_do_nothing`.
+
+- [x] [Review][Patch] **Race condition: replace_insights non-atomic delete+insert** [`repository.py:164-189`] — Fixed: wrapped in `begin_nested()` savepoint for atomicity.
+
+- [x] [Review][Patch] **React Query refetch wipes active insight** [`usePendingInsights.ts`] — Fixed: added `staleTime: Infinity` and `refetchOnWindowFocus: false`.
+
+- [x] [Review][Patch] **confidence_score has no bounds validation at domain level** [`entities.py`] — Fixed: added `__post_init__` validation raising ValueError for out-of-range values.
+
+- [x] [Review][Patch] **`_to_domain` crashes on invalid PatternType from DB** [`repository.py:26`] — Fixed: added try/except with fallback to `TIME_OF_DAY_PATTERN` and warning log.
+
+- [x] [Review][Patch] **`_data_age_days` can return negative values with future-dated reviews** [`services.py:108`] — Fixed: clamped to `max(age, 1)`.
+
+- [x] [Review][Patch] **Tab key not suppressed during insight mode** [`useReviewKeyboard.ts:53-59`] — Fixed: added `if (e.code === "Tab") { e.preventDefault(); }` in insight block.
+
+- [x] [Review][Patch] **DB index missing DESC sort order on created_at** [`models.py:33`] — Fixed: changed to `text("created_at DESC")` in both model and migration.
+
+- [x] [Review][Patch] **InsightSeverity uses Literal type with no runtime validation** [`entities.py`] — Fixed: changed from `Literal` to `StrEnum`. Updated `schemas.py` and tests.
+
+- [x] [Review][Patch] **Missing showNextInsight edge case tests** [`useReviewStore.test.ts`] — Fixed: added 3 tests: index 0 guard, double-show guard, dismiss no-op.
+
+- [ ] [Review][Patch] **action_href has no validation — potential XSS vector** [`entities.py`, `models.py`] — Deferred to future improvement. `action_href` values originate from backend pattern detection (not user input), risk is minimal.
+
+- [ ] [Review][Patch] **get_pending_insights redundantly recomputes for < 3 day users** [`services.py:97-98`] — Deferred. Minor perf issue, 30-day query is fast.
+
+- [ ] [Review][Patch] **No keyboard-event unit tests for useReviewKeyboard** — Deferred. Hook testing requires DOM env setup beyond current scope.
+
+- [ ] [Review][Patch] **Missing medium-confidence (0.8) specific test** — Deferred. Existing test suite covers 0.5 and 1.0 tiers adequately.
+
+### Defer (pre-existing or future scope)
+
+- [x] [Review][Defer] **PatternType enum has 3 unimplemented pattern types** [`value_objects.py`] — CROSS_LANGUAGE_INTERFERENCE, SESSION_LENGTH_EFFECT, DAY_OF_WEEK_PATTERN have no detection functions. Deferred: future story scope.
+
+- [x] [Review][Defer] **Dashboard reads from srs/vocabulary module internals** [`repository.py:16-17`] — Directly imports ORM models from srs and vocabulary modules. Deferred: matches spec's "read model" architecture pattern, restructure later if needed.
+
+- [x] [Review][Defer] **get_review_analytics returns unbounded result set** [`repository.py:115-149`] — No LIMIT or pagination on analytics query. Deferred: 30-day cap limits size; add pagination if performance issues arise.
+
+- [x] [Review][Defer] **patternsDetected sourced from local counter, not server** [`page.tsx:475`] — `insightsSeen` is client-only, not server-validated. Deferred: minor UX gap; could add server-side tracking later.
+
+- [x] [Review][Defer] **datetime.now(UTC) vs DB server time drift** [`repository.py:41,123`] — Client-side `datetime.now(UTC)` vs DB `server_default=func.now()`. Deferred: clock drift is negligible for most deployments.
+
+- [x] [Review][Defer] **No index on expires_at for expiration filter** [`models.py`] — `get_pending_insights` filters on `expires_at` but no index supports it. Deferred: premature optimization for current data volumes.
 
 ## Dev Agent Record
 

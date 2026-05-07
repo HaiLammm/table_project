@@ -52,7 +52,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_diagnostic_insights_user_created",
         "diagnostic_insights",
-        ["user_id", "created_at"],
+        ["user_id", sa.text("created_at DESC")],
         unique=False,
     )
 

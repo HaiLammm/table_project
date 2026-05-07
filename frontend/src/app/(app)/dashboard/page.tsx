@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2 } from "lucide-react";
 
-import { CatchUpBanner, QueueHeader } from "@/components/review";
+import { CatchUpBanner, QueueHeader, UpcomingSchedule } from "@/components/review";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { useApiClient } from "@/lib/api-client";
 import { srsKeys } from "@/lib/query-keys";
+import { useUpcomingSchedule } from "@/hooks/useUpcomingSchedule";
 import { useReviewStore } from "@/stores/review-store";
 
 type QueueMode = "full" | "catchup";
@@ -115,6 +116,7 @@ export default function DashboardPage() {
   const queueMode = useReviewStore((state) => state.queueMode);
   const setQueueMode = useReviewStore((state) => state.setQueueMode);
   const queueStatsQuery = useQueueStats();
+  const scheduleQuery = useUpcomingSchedule();
   const dueCount = queueStatsQuery.data?.due_count ?? 0;
   const queueQuery = useDueQueue(queueMode, queueStatsQuery.isSuccess && dueCount > 0);
 
@@ -169,6 +171,15 @@ export default function DashboardPage() {
             dueCount={queueStatsQuery.data.due_count}
             estimatedMinutes={queueStatsQuery.data.estimated_minutes}
           />
+          {scheduleQuery.isSuccess && scheduleQuery.data ? (
+            <div className="mt-4">
+              <UpcomingSchedule
+                tomorrow={scheduleQuery.data.tomorrow}
+                thisWeek={scheduleQuery.data.this_week}
+                isLoading={scheduleQuery.isLoading}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

@@ -58,3 +58,14 @@ export interface SessionStatsResponse {
   tomorrow_due_count: number
   tomorrow_estimated_minutes: number
 }
+
+export interface ScheduleBucketResponse {
+  due_count: number
+  estimated_minutes: number
+}
+
+export interface UpcomingScheduleResponse {
+  today: ScheduleBucketResponse
+  tomorrow: ScheduleBucketResponse
+  this_week: ScheduleBucketResponse
+}

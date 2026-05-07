@@ -109,6 +109,17 @@ class InMemorySessionStatsRepository(SrsCardRepository):
     async def update_card_with_delete_review(self, card: SrsCard, review_id: int) -> SrsCard:
         return card
 
+    async def count_due_cards_by_buckets(
+        self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
+    ):
+        from src.app.modules.srs.domain.entities import ScheduleBucket, UpcomingSchedule
+
+        return UpcomingSchedule(
+            today=ScheduleBucket(due_count=0, estimated_minutes=0),
+            tomorrow=ScheduleBucket(due_count=0, estimated_minutes=0),
+            this_week=ScheduleBucket(due_count=0, estimated_minutes=0),
+        )
+
 
 async def test_empty_session_returns_zeros() -> None:
     repository = InMemorySessionStatsRepository()

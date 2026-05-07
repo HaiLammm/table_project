@@ -19,6 +19,7 @@ from src.app.modules.srs.api.schemas import (
     ReviewCardResponse,
     SessionStatsResponse,
     UndoReviewResponse,
+    UpcomingScheduleResponse,
 )
 from src.app.modules.srs.application.services import QueueStatsService, ReviewSchedulingService
 from src.app.modules.srs.domain.value_objects import QueueMode, Rating
@@ -44,7 +45,7 @@ def _require_user_id(current_user: CurrentUserDependency) -> int:
 
 
 @router.post(
-    "",
+    "/cards",
     status_code=status.HTTP_201_CREATED,
     response_model=CreateSrsCardResponse,
     tags=["srs_cards"],
@@ -62,7 +63,7 @@ async def create_srs_card(
     return CreateSrsCardResponse.model_validate(card)
 
 
-@router.get("/queue-stats", response_model=QueueStatsResponse, tags=["srs_cards"])
+@router.get("/cards/queue-stats", response_model=QueueStatsResponse, tags=["srs_cards"])
 async def read_queue_stats(
     current_user: CurrentUserDependency,
     queue_stats_service: QueueStatsServiceDependency,
@@ -168,3 +169,12 @@ async def undo_srs_review(
         reps=review_result.card.reps,
         lapses=review_result.card.lapses,
     )
+
+
+@router.get("/schedule", response_model=UpcomingScheduleResponse, tags=["srs_cards"])
+async def read_upcoming_schedule(
+    current_user: CurrentUserDependency,
+    queue_stats_service: QueueStatsServiceDependency,
+) -> UpcomingScheduleResponse:
+    schedule = await queue_stats_service.get_upcoming_schedule(_require_user_id(current_user))
+    return UpcomingScheduleResponse.model_validate(schedule)

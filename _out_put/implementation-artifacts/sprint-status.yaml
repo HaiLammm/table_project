@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-05"
-last_updated: "2026-05-07"  # story 4-6 ready-for-dev (create-story)
+last_updated: "2026-05-07"  # story 5-2 moved to review (dev-story)
 project: table_project
 project_key: NOKEY
 tracking_system: file-system
@@ -77,15 +77,15 @@ development_status:
   4-2-reviewcard-component-card-reveal-flow: review
   4-3-ratingbutton-component-card-rating: review
   4-4-review-session-flow-keyboard-navigation: done
-  4-5-diagnostic-micro-insertions: review
+  4-5-diagnostic-micro-insertions: done
   4-6-session-end-intelligence-summary: review 
-  4-7-upcoming-review-schedule: backlog
+  4-7-upcoming-review-schedule: review
   epic-4-retrospective: optional
 
   # Epic 5: Personal Collections
-  epic-5: backlog
-  5-1-collection-crud-data-model: backlog
-  5-2-add-remove-terms-from-collections: backlog
+  epic-5: in-progress
+  5-1-collection-crud-data-model: review
+  5-2-add-remove-terms-from-collections: review
   5-3-browse-collection-contents-detail-view: backlog
   5-4-start-learning-session-from-collection: backlog
   epic-5-retrospective: optional

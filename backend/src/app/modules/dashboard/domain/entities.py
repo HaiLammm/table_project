@@ -1,10 +1,14 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from enum import StrEnum
 
 from src.app.modules.dashboard.domain.value_objects import PatternType
 
-InsightSeverity = Literal["info", "warning", "success"]
+
+class InsightSeverity(StrEnum):
+    INFO = "info"
+    WARNING = "warning"
+    SUCCESS = "success"
 
 
 @dataclass(slots=True, kw_only=True)
@@ -21,6 +25,11 @@ class DiagnosticInsight:
     action_href: str | None = None
     created_at: datetime | None = None
     expires_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if not (0.0 <= self.confidence_score <= 1.0):
+            msg = f"confidence_score must be between 0.0 and 1.0, got {self.confidence_score}"
+            raise ValueError(msg)
 
     @property
     def delivery_interval(self) -> int:

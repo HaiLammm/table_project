@@ -51,6 +51,9 @@ export function useReviewKeyboard(
       }
 
       if (isShowingInsight) {
+        if (e.code === "Tab") {
+          e.preventDefault();
+        }
         if (e.code === "Space") {
           e.preventDefault();
           handleDismissInsight();

@@ -12,6 +12,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -30,7 +31,7 @@ class DiagnosticInsightModel(Base):
             "confidence_score >= 0.0 AND confidence_score <= 1.0",
             name="chk_diagnostic_insights_confidence",
         ),
-        Index("ix_diagnostic_insights_user_created", "user_id", "created_at"),
+        Index("ix_diagnostic_insights_user_created", "user_id", text("created_at DESC")),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

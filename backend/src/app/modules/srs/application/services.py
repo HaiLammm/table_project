@@ -10,8 +10,10 @@ from src.app.modules.srs.domain.entities import (
     QueueStats,
     Review,
     ReviewResult,
+    ScheduleBucket,
     SessionStats,
     SrsCard,
+    UpcomingSchedule,
 )
 from src.app.modules.srs.domain.exceptions import (
     CardNotDueError,
@@ -68,6 +70,23 @@ class QueueStatsService:
             limit=effective_limit,
             offset=effective_offset,
         )
+
+    async def get_upcoming_schedule(self, user_id: int) -> UpcomingSchedule:
+        now = datetime.now(UTC)
+        today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        tomorrow_end = today_end + timedelta(days=1)
+        days_until_sunday = (6 - now.weekday()) % 7
+        if days_until_sunday == 0 and now.weekday() == 6:
+            week_end = today_end
+        else:
+            week_end = (now + timedelta(days=days_until_sunday)).replace(
+                hour=23, minute=59, second=59, microsecond=999999
+            )
+
+        buckets = await self._srs_card_repository.count_due_cards_by_buckets(
+            user_id, today_end, tomorrow_end, week_end
+        )
+        return buckets
 
 
 class ReviewSchedulingService:

@@ -78,3 +78,14 @@ class SessionStatsResponse(BaseModel):
     lapsed_card_ids: list[int]
     tomorrow_due_count: int
     tomorrow_estimated_minutes: int
+
+
+class ScheduleBucketResponse(BaseModel):
+    due_count: int
+    estimated_minutes: int
+
+
+class UpcomingScheduleResponse(BaseModel):
+    today: ScheduleBucketResponse
+    tomorrow: ScheduleBucketResponse
+    this_week: ScheduleBucketResponse

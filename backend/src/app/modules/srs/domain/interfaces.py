@@ -8,6 +8,7 @@ from src.app.modules.srs.domain.entities import (
     Review,
     SessionReviewRow,
     SrsCard,
+    UpcomingSchedule,
 )
 from src.app.modules.srs.domain.value_objects import QueueMode
 
@@ -78,4 +79,10 @@ class SrsCardRepository(ABC):
 
     @abstractmethod
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def count_due_cards_by_buckets(
+        self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
+    ) -> UpcomingSchedule:
         raise NotImplementedError

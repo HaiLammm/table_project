@@ -3,6 +3,7 @@ from uuid import UUID
 
 import structlog
 from sqlalchemy import delete, exists, func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.app.modules.dashboard.domain.entities import DiagnosticInsight
@@ -20,10 +21,15 @@ logger = structlog.get_logger().bind(module="dashboard_repository")
 
 
 def _to_domain(model: DiagnosticInsightModel) -> DiagnosticInsight:
+    try:
+        pattern_type = PatternType(model.type)
+    except ValueError:
+        pattern_type = PatternType.TIME_OF_DAY_PATTERN
+        logger.warning("unknown_pattern_type", raw_type=model.type, fallback=pattern_type.value)
     return DiagnosticInsight(
         id=model.id,
         user_id=model.user_id,
-        type=PatternType(model.type),
+        type=pattern_type,
         severity=model.severity,
         icon=model.icon,
         title=model.title,
@@ -88,22 +94,14 @@ class SqlAlchemyDiagnosticRepository(DiagnosticRepository):
             msg = "Insight not found"
             raise InsightNotFoundError(msg, details={"insight_id": insight_id, "user_id": user_id})
 
-        existing_result = await self._session.execute(
-            select(InsightSeenModel).where(
-                InsightSeenModel.insight_id == insight_id,
-                InsightSeenModel.user_id == user_id,
-                InsightSeenModel.session_id == session_id,
+        await self._session.execute(
+            pg_insert(InsightSeenModel)
+            .values(insight_id=insight_id, user_id=user_id, session_id=session_id)
+            .on_conflict_do_nothing(
+                constraint="uq_insight_seen",
             )
         )
-        if existing_result.scalar_one_or_none() is None:
-            self._session.add(
-                InsightSeenModel(
-                    insight_id=insight_id,
-                    user_id=user_id,
-                    session_id=session_id,
-                )
-            )
-            await self._session.commit()
+        await self._session.commit()
 
         logger.info(
             "insight_seen_marked",
@@ -166,25 +164,28 @@ class SqlAlchemyDiagnosticRepository(DiagnosticRepository):
         user_id: int,
         insights: list[DiagnosticInsight],
     ) -> None:
-        await self._session.execute(
-            delete(DiagnosticInsightModel).where(DiagnosticInsightModel.user_id == user_id)
-        )
-
-        for insight in insights:
-            self._session.add(
-                DiagnosticInsightModel(
-                    user_id=user_id,
-                    type=insight.type.value,
-                    severity=insight.severity,
-                    icon=insight.icon,
-                    title=insight.title,
-                    text=insight.text,
-                    action_label=insight.action_label,
-                    action_href=insight.action_href,
-                    confidence_score=insight.confidence_score,
-                    expires_at=insight.expires_at,
-                )
+        async with self._session.begin_nested():
+            await self._session.execute(
+                delete(DiagnosticInsightModel).where(DiagnosticInsightModel.user_id == user_id)
             )
+
+            for insight in insights:
+                self._session.add(
+                    DiagnosticInsightModel(
+                        user_id=user_id,
+                        type=insight.type.value,
+                        severity=insight.severity.value
+                        if hasattr(insight.severity, "value")
+                        else insight.severity,
+                        icon=insight.icon,
+                        title=insight.title,
+                        text=insight.text,
+                        action_label=insight.action_label,
+                        action_href=insight.action_href,
+                        confidence_score=insight.confidence_score,
+                        expires_at=insight.expires_at,
+                    )
+                )
 
         await self._session.commit()
         logger.info("diagnostic_insights_replaced", user_id=user_id, count=len(insights))

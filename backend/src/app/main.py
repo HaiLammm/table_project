@@ -8,6 +8,8 @@ from src.app.core.exceptions import build_error_payload
 from src.app.core.logging import configure_logging
 from src.app.modules.auth.api.router import router as auth_router
 from src.app.modules.auth.domain.exceptions import AuthDomainError
+from src.app.modules.collections.api.router import router as collections_router
+from src.app.modules.collections.domain.exceptions import CollectionDomainError
 from src.app.modules.dashboard.api.router import router as diagnostics_router
 from src.app.modules.dashboard.domain.exceptions import DashboardDomainError
 from src.app.modules.enrichment.api.router import enrichment_router
@@ -67,6 +69,16 @@ def create_application() -> FastAPI:
             content=build_error_payload(exc.code, exc.message, exc.details),
         )
 
+    @app.exception_handler(CollectionDomainError)
+    async def collection_domain_exception_handler(
+        _request: Request,
+        exc: CollectionDomainError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=build_error_payload(exc.code, exc.message, exc.details),
+        )
+
     @app.exception_handler(HTTPException)
     async def http_exception_handler(
         _request: Request,
@@ -98,6 +110,7 @@ def create_application() -> FastAPI:
     app.include_router(search_router, prefix=settings.api_v1_prefix)
     app.include_router(srs_router, prefix=f"{settings.api_v1_prefix}/srs_cards")
     app.include_router(vocabulary_router, prefix=f"{settings.api_v1_prefix}/vocabulary_terms")
+    app.include_router(collections_router, prefix=f"{settings.api_v1_prefix}/collections")
     app.include_router(enrichment_router, prefix=settings.api_v1_prefix)
     app.include_router(diagnostics_router, prefix=settings.api_v1_prefix)
     return app

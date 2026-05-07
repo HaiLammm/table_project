@@ -15,5 +15,7 @@ export function usePendingInsights(sessionId: string | null, enabled: boolean) {
       return apiClient<PendingInsightsResponse>(`/diagnostics/insights?${params.toString()}`);
     },
     enabled: enabled && sessionId !== null,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 }

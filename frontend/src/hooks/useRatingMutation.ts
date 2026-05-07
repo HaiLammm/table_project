@@ -24,6 +24,7 @@ export function useRatingMutation(queueMode: QueueMode) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: srsKeys.queue(queueMode) });
       queryClient.invalidateQueries({ queryKey: srsKeys.queueStats() });
+      queryClient.invalidateQueries({ queryKey: srsKeys.schedule() });
     },
   });
 }

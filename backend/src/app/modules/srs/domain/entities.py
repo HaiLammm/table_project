@@ -75,6 +75,19 @@ class SessionReviewRow:
 
 
 @dataclass(slots=True, kw_only=True)
+class ScheduleBucket:
+    due_count: int
+    estimated_minutes: int
+
+
+@dataclass(slots=True, kw_only=True)
+class UpcomingSchedule:
+    today: ScheduleBucket
+    tomorrow: ScheduleBucket
+    this_week: ScheduleBucket
+
+
+@dataclass(slots=True, kw_only=True)
 class DueCardsPage:
     items: list[SrsCard]
     total_count: int

@@ -121,6 +121,17 @@ class InMemoryReviewRepository(SrsCardRepository):
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
         return 0
 
+    async def count_due_cards_by_buckets(
+        self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
+    ):
+        from src.app.modules.srs.domain.entities import ScheduleBucket, UpcomingSchedule
+
+        return UpcomingSchedule(
+            today=ScheduleBucket(due_count=0, estimated_minutes=0),
+            tomorrow=ScheduleBucket(due_count=0, estimated_minutes=0),
+            this_week=ScheduleBucket(due_count=0, estimated_minutes=0),
+        )
+
 
 async def test_review_scheduling_service_initializes_fsrs_card_defaults() -> None:
     repository = InMemoryReviewRepository()

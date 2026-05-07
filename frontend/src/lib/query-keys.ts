@@ -13,12 +13,20 @@ export const srsKeys = {
   card: (id: number) => [...srsKeys.all, "card", id] as const,
   dueCards: () => [...srsKeys.all, "due-cards"] as const,
   sessionStats: (sessionId: string) => [...srsKeys.all, "session-stats", sessionId] as const,
+  schedule: () => [...srsKeys.all, "schedule"] as const,
 };
 
 export const diagnosticsKeys = {
   all: ["diagnostics"] as const,
   pendingInsights: (sessionId: string) =>
     [...diagnosticsKeys.all, "pending-insights", sessionId] as const,
+};
+
+export const collectionKeys = {
+  all: ["collections"] as const,
+  list: () => [...collectionKeys.all, "list"] as const,
+  detail: (id: number) => [...collectionKeys.all, id] as const,
+  terms: (id: number) => [...collectionKeys.detail(id), "terms"] as const,
 };
 
 export const vocabularyKeys = {

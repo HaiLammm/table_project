@@ -1,8 +1,8 @@
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.app.modules.dashboard.domain.entities import InsightSeverity
 from src.app.modules.dashboard.domain.value_objects import PatternType
 
 
@@ -11,7 +11,7 @@ class InsightResponse(BaseModel):
 
     id: int
     type: PatternType
-    severity: Literal["info", "warning", "success"]
+    severity: InsightSeverity
     icon: str
     title: str
     text: str

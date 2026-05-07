@@ -4,3 +4,4 @@ export { QueueHeader } from "./QueueHeader";
 export { RatingButton } from "./RatingButton";
 export { ReviewCard } from "./ReviewCard";
 export { SessionSummary } from "./SessionSummary";
+export { UpcomingSchedule } from "./UpcomingSchedule";

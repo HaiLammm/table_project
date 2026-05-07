@@ -6,8 +6,10 @@ from src.app.modules.srs.domain.entities import (
     DueCardsPage,
     QueueStats,
     Review,
+    ScheduleBucket,
     SessionReviewRow,
     SrsCard,
+    UpcomingSchedule,
 )
 from src.app.modules.srs.domain.exceptions import DuplicateCardError
 from src.app.modules.srs.domain.interfaces import SrsCardRepository
@@ -84,6 +86,16 @@ class InMemorySrsCardRepository(SrsCardRepository):
 
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
         return 0
+
+    async def count_due_cards_by_buckets(
+        self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
+    ) -> UpcomingSchedule:
+        _ = (user_id, today_end, tomorrow_end, week_end)
+        return UpcomingSchedule(
+            today=ScheduleBucket(due_count=0, estimated_minutes=0),
+            tomorrow=ScheduleBucket(due_count=0, estimated_minutes=0),
+            this_week=ScheduleBucket(due_count=0, estimated_minutes=0),
+        )
 
     async def list_due_cards(
         self,
