@@ -7,9 +7,13 @@ from src.app.modules.dashboard.domain.entities import DiagnosticInsight
 
 
 class ReviewAnalyticsRow(TypedDict):
+    card_id: int
     reviewed_at: datetime
     rating: int
     response_time_ms: int | None
+    language: str
+    parallel_mode_active: bool | None
+    term_id: int | None
     term_category: str | None
     term_text: str | None
 

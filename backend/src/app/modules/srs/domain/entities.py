@@ -29,6 +29,8 @@ class Review:
     reviewed_at: datetime
     id: int | None = None
     response_time_ms: int | None = None
+    session_length_s: int | None = None
+    parallel_mode_active: bool | None = None
     session_id: UUID | None = None
     previous_fsrs_state: dict[str, object] | None = None
     previous_stability: float | None = None
@@ -50,6 +52,7 @@ class QueueStats:
     due_count: int
     overdue_count: int
     estimated_minutes: int
+    retention_rate: float | None = None
 
     @property
     def has_overdue(self) -> bool:
@@ -88,8 +91,25 @@ class UpcomingSchedule:
 
 
 @dataclass(slots=True, kw_only=True)
+class EmbeddedTerm:
+    id: int
+    term: str
+    language: str
+    cefr_level: str | None = None
+    jlpt_level: str | None = None
+    part_of_speech: str | None = None
+    definitions: list[dict[str, object]] = field(default_factory=list)
+
+
+@dataclass(slots=True, kw_only=True)
+class DueCardWithTerm:
+    card: SrsCard
+    term: EmbeddedTerm | None = None
+
+
+@dataclass(slots=True, kw_only=True)
 class DueCardsPage:
-    items: list[SrsCard]
+    items: list[DueCardWithTerm]
     total_count: int
     mode: QueueMode
     limit: int

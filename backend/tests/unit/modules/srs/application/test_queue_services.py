@@ -22,8 +22,10 @@ class InMemorySrsCardRepository(SrsCardRepository):
         self._cards = cards or []
         self.rollback_called = False
 
-    async def get_queue_stats(self, user_id: int, now: datetime) -> QueueStats:
-        _ = (user_id, now)
+    async def get_queue_stats(
+        self, user_id: int, now: datetime, collection_id: int | None = None
+    ) -> QueueStats:
+        _ = (user_id, now, collection_id)
         return self._stats
 
     async def create_card(self, card: SrsCard) -> SrsCard:
@@ -87,6 +89,11 @@ class InMemorySrsCardRepository(SrsCardRepository):
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
         return 0
 
+    async def find_term_ids_without_cards(
+        self, user_id: int, collection_id: int, language: str
+    ) -> list[int]:
+        return []
+
     async def count_due_cards_by_buckets(
         self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
     ) -> UpcomingSchedule:
@@ -104,8 +111,9 @@ class InMemorySrsCardRepository(SrsCardRepository):
         mode: QueueMode,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DueCardsPage:
-        _ = (user_id, now)
+        _ = (user_id, now, collection_id)
         due_cards = sorted(
             self._cards,
             key=lambda card: (int(card.reps == 0), card.due_at, card.id or 0),

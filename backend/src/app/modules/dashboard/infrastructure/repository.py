@@ -118,9 +118,13 @@ class SqlAlchemyDiagnosticRepository(DiagnosticRepository):
         cutoff = datetime.now(UTC) - timedelta(days=days_back)
         result = await self._session.execute(
             select(
+                SrsReviewModel.card_id,
                 SrsReviewModel.reviewed_at,
                 SrsReviewModel.rating,
                 SrsReviewModel.response_time_ms,
+                SrsCardModel.language,
+                SrsReviewModel.parallel_mode_active,
+                SrsCardModel.term_id,
                 VocabularyTermModel.part_of_speech,
                 VocabularyTermModel.term,
             )
@@ -134,12 +138,26 @@ class SqlAlchemyDiagnosticRepository(DiagnosticRepository):
         )
 
         rows: list[ReviewAnalyticsRow] = []
-        for reviewed_at, rating, response_time_ms, term_category, term_text in result.all():
+        for (
+            card_id,
+            reviewed_at,
+            rating,
+            response_time_ms,
+            language,
+            parallel_mode_active,
+            term_id,
+            term_category,
+            term_text,
+        ) in result.all():
             rows.append(
                 {
+                    "card_id": card_id,
                     "reviewed_at": reviewed_at,
                     "rating": rating,
                     "response_time_ms": response_time_ms,
+                    "language": language,
+                    "parallel_mode_active": parallel_mode_active,
+                    "term_id": term_id,
                     "term_category": term_category,
                     "term_text": term_text,
                 }

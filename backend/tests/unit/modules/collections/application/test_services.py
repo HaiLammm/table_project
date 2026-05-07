@@ -191,29 +191,37 @@ class InMemoryCollectionTermRepository(CollectionTermRepository):
         user_id: int,
         page: int,
         page_size: int,
+        search: str | None = None,
+        mastery_status: str | None = None,
     ) -> tuple[list[CollectionTermEntry], int]:
         _ = user_id
         term_ids = self._terms_by_collection.get(collection_id, [])
-        offset = (page - 1) * page_size
-        paged_ids = term_ids[offset : offset + page_size]
 
-        items: list[CollectionTermEntry] = []
-        for term_id in paged_ids:
+        filtered_entries: list[CollectionTermEntry] = []
+        for term_id in term_ids:
             term = await self._vocabulary_repository.get_term_by_id(term_id)
             if term is None:
                 continue
-            items.append(
-                CollectionTermEntry(
-                    term_id=term_id,
-                    term=term.term,
-                    language=term.language,
-                    mastery_status=self._mastery_status_by_term_id.get(term_id, "new"),
-                    cefr_level=term.cefr_level,
-                    jlpt_level=term.jlpt_level,
-                    part_of_speech=term.part_of_speech,
-                )
+            entry = CollectionTermEntry(
+                term_id=term_id,
+                term=term.term,
+                language=term.language,
+                mastery_status=self._mastery_status_by_term_id.get(term_id, "new"),
+                cefr_level=term.cefr_level,
+                jlpt_level=term.jlpt_level,
+                part_of_speech=term.part_of_speech,
             )
-        return items, len(term_ids)
+            if search and search.strip():
+                if search.strip().lower() not in entry.term.lower():
+                    continue
+            if mastery_status is not None:
+                if entry.mastery_status != mastery_status:
+                    continue
+            filtered_entries.append(entry)
+
+        offset = (page - 1) * page_size
+        paged_entries = filtered_entries[offset : offset + page_size]
+        return paged_entries, len(filtered_entries)
 
     def set_mastery_status(self, term_id: int, status: str) -> None:
         self._mastery_status_by_term_id[term_id] = status
@@ -364,6 +372,94 @@ async def test_collection_service_get_collection_terms_supports_mastery_and_pagi
     assert result["total"] == 2
     assert result["has_next"] is True
     assert result["items"][0].mastery_status == "mastered"
+
+
+async def test_collection_service_search_filters_terms_by_name() -> None:
+    repository = InMemoryCollectionRepository()
+    vocabulary_repository = InMemoryVocabularyRepository()
+    vocabulary_repository.add_term(term_id=201, term="protocol")
+    vocabulary_repository.add_term(term_id=202, term="deploy")
+    vocabulary_repository.add_term(term_id=203, term="prototype")
+    term_repository = InMemoryCollectionTermRepository(vocabulary_repository)
+    service = CollectionService(repository, term_repository, vocabulary_repository)
+
+    collection = await service.create_collection(user_id=7, name="Search", icon="🔍")
+    await service.add_terms_bulk(
+        user_id=7,
+        collection_id=collection.id or 0,
+        term_ids=[201, 202, 203],
+    )
+
+    result = await service.get_collection_terms(
+        user_id=7,
+        collection_id=collection.id or 0,
+        page=1,
+        page_size=20,
+        search="proto",
+    )
+
+    terms = [item.term for item in result["items"]]
+    assert "protocol" in terms
+    assert "prototype" in terms
+    assert "deploy" not in terms
+
+
+async def test_collection_service_mastery_status_filters_terms() -> None:
+    repository = InMemoryCollectionRepository()
+    vocabulary_repository = InMemoryVocabularyRepository()
+    vocabulary_repository.add_term(term_id=301, term="fresh")
+    vocabulary_repository.add_term(term_id=302, term="active")
+    term_repository = InMemoryCollectionTermRepository(vocabulary_repository)
+    term_repository.set_mastery_status(301, "new")
+    term_repository.set_mastery_status(302, "mastered")
+    service = CollectionService(repository, term_repository, vocabulary_repository)
+
+    collection = await service.create_collection(user_id=7, name="Filter", icon="🎯")
+    await service.add_terms_bulk(
+        user_id=7,
+        collection_id=collection.id or 0,
+        term_ids=[301, 302],
+    )
+
+    result = await service.get_collection_terms(
+        user_id=7,
+        collection_id=collection.id or 0,
+        page=1,
+        page_size=20,
+        mastery_status="mastered",
+    )
+
+    assert result["total"] == 1
+    assert (
+        result["items"][0].term == "mastered_count_check"
+        or result["items"][0].mastery_status == "mastered"
+    )
+
+
+async def test_collection_service_search_empty_results_returns_zero_total() -> None:
+    repository = InMemoryCollectionRepository()
+    vocabulary_repository = InMemoryVocabularyRepository()
+    vocabulary_repository.add_term(term_id=401, term="protocol")
+    term_repository = InMemoryCollectionTermRepository(vocabulary_repository)
+    service = CollectionService(repository, term_repository, vocabulary_repository)
+
+    collection = await service.create_collection(user_id=7, name="Empty", icon="📭")
+    await service.add_terms_bulk(
+        user_id=7,
+        collection_id=collection.id or 0,
+        term_ids=[401],
+    )
+
+    result = await service.get_collection_terms(
+        user_id=7,
+        collection_id=collection.id or 0,
+        page=1,
+        page_size=20,
+        search="xyznonexistent",
+    )
+
+    assert result["total"] == 0
+    assert result["items"] == []
 
 
 async def test_collection_service_import_csv_skips_duplicates() -> None:

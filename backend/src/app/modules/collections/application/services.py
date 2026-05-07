@@ -177,6 +177,8 @@ class CollectionService:
         collection_id: int,
         page: int,
         page_size: int,
+        search: str | None = None,
+        mastery_status: str | None = None,
     ) -> CollectionTermsPage:
         await self._get_existing_collection(collection_id=collection_id, user_id=user_id)
         items, total = await self._term_repository.get_terms_by_collection(
@@ -184,6 +186,8 @@ class CollectionService:
             user_id,
             page,
             page_size,
+            search=search,
+            mastery_status=mastery_status,
         )
         has_next = (page * page_size) < total
         return CollectionTermsPage(

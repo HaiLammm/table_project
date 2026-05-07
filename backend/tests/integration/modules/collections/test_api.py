@@ -513,3 +513,201 @@ async def test_collections_api_blocks_other_users_from_modifying_collection(
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "collection_not_found"
+
+
+async def test_collections_api_searches_terms_by_name(
+    collections_client: tuple[AsyncClient, User],
+    async_engine: AsyncEngine,
+) -> None:
+    client, user = collections_client
+    session_factory = async_sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    now = datetime.now(UTC)
+
+    async with session_factory() as session:
+        await session.execute(
+            insert(VocabularyTermModel),
+            [
+                {"id": 8001, "term": "protocol", "language": "en", "created_at": now},
+                {"id": 8002, "term": "deploy", "language": "en", "created_at": now},
+                {"id": 8003, "term": "prototype", "language": "en", "created_at": now},
+                {"id": 8004, "term": "iteration", "language": "en", "created_at": now},
+            ],
+        )
+        session.add(CollectionModel(id=8000, user_id=user.id or 0, name="Search", icon="🔍"))
+        await session.commit()
+        await session.execute(
+            insert(CollectionTermModel),
+            [
+                {"collection_id": 8000, "term_id": 8001},
+                {"collection_id": 8000, "term_id": 8002},
+                {"collection_id": 8000, "term_id": 8003},
+                {"collection_id": 8000, "term_id": 8004},
+            ],
+        )
+        await session.commit()
+
+    response = await client.get("/api/v1/collections/8000/terms?search=proto")
+    assert response.status_code == 200
+    items = response.json()["items"]
+    terms = [item["term"] for item in items]
+    assert "protocol" in terms
+    assert "prototype" in terms
+    assert "deploy" not in terms
+    assert "iteration" not in terms
+
+
+async def test_collections_api_searches_terms_returns_empty_when_no_match(
+    collections_client: tuple[AsyncClient, User],
+    async_engine: AsyncEngine,
+) -> None:
+    client, user = collections_client
+    session_factory = async_sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    now = datetime.now(UTC)
+
+    async with session_factory() as session:
+        await session.execute(
+            insert(VocabularyTermModel).values(
+                id=8101,
+                term="protocol",
+                language="en",
+                created_at=now,
+            ),
+        )
+        session.add(CollectionModel(id=8100, user_id=user.id or 0, name="SearchEmpty", icon="📭"))
+        await session.commit()
+        await session.execute(
+            insert(CollectionTermModel).values(collection_id=8100, term_id=8101),
+        )
+        await session.commit()
+
+    response = await client.get("/api/v1/collections/8100/terms?search=xyznonexistent")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"] == []
+    assert data["total"] == 0
+
+
+async def test_collections_api_filters_terms_by_mastery_status(
+    collections_client: tuple[AsyncClient, User],
+    async_engine: AsyncEngine,
+) -> None:
+    client, user = collections_client
+    session_factory = async_sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    now = datetime.now(UTC)
+
+    async with session_factory() as session:
+        await session.execute(
+            insert(VocabularyTermModel),
+            [
+                {"id": 9001, "term": "fresh", "language": "en", "created_at": now},
+                {"id": 9002, "term": "active", "language": "en", "created_at": now},
+                {"id": 9003, "term": "mastered", "language": "en", "created_at": now},
+            ],
+        )
+        session.add(
+            CollectionModel(id=9000, user_id=user.id or 0, name="MasteryFilter", icon="🎯")
+        )
+        await session.commit()
+        await session.execute(
+            insert(CollectionTermModel),
+            [
+                {"collection_id": 9000, "term_id": 9001},
+                {"collection_id": 9000, "term_id": 9002},
+                {"collection_id": 9000, "term_id": 9003},
+            ],
+        )
+        await session.execute(
+            insert(SrsCardModel),
+            [
+                {
+                    "user_id": user.id,
+                    "term_id": 9002,
+                    "language": "en",
+                    "due_at": now,
+                    "fsrs_state": {"state": 1},
+                    "stability": 12.0,
+                    "difficulty": 4.0,
+                    "reps": 2,
+                    "lapses": 0,
+                },
+                {
+                    "user_id": user.id,
+                    "term_id": 9003,
+                    "language": "en",
+                    "due_at": now,
+                    "fsrs_state": {"state": 2},
+                    "stability": 25.0,
+                    "difficulty": 2.0,
+                    "reps": 6,
+                    "lapses": 0,
+                },
+            ],
+        )
+        await session.commit()
+
+    mastered_response = await client.get("/api/v1/collections/9000/terms?mastery_status=mastered")
+    assert mastered_response.status_code == 200
+    mastered_items = mastered_response.json()["items"]
+    assert len(mastered_items) == 1
+    assert mastered_items[0]["term"] == "mastered"
+
+    learning_response = await client.get("/api/v1/collections/9000/terms?mastery_status=learning")
+    assert learning_response.status_code == 200
+    learning_items = learning_response.json()["items"]
+    assert len(learning_items) == 1
+    assert learning_items[0]["term"] == "active"
+
+    new_response = await client.get("/api/v1/collections/9000/terms?mastery_status=new")
+    assert new_response.status_code == 200
+    new_items = new_response.json()["items"]
+    assert len(new_items) == 1
+    assert new_items[0]["term"] == "fresh"
+
+
+async def test_collections_api_combines_search_and_pagination(
+    collections_client: tuple[AsyncClient, User],
+    async_engine: AsyncEngine,
+) -> None:
+    client, user = collections_client
+    session_factory = async_sessionmaker(
+        bind=async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    now = datetime.now(UTC)
+
+    terms_data = [
+        {"id": 9501 + i, "term": f"proto_{chr(97 + i)}", "language": "en", "created_at": now}
+        for i in range(5)
+    ]
+
+    async with session_factory() as session:
+        await session.execute(insert(VocabularyTermModel), terms_data)
+        session.add(
+            CollectionModel(id=9500, user_id=user.id or 0, name="SearchPaginate", icon="📄")
+        )
+        await session.commit()
+        await session.execute(
+            insert(CollectionTermModel),
+            [{"collection_id": 9500, "term_id": 9501 + i} for i in range(5)],
+        )
+        await session.commit()
+
+    response = await client.get("/api/v1/collections/9500/terms?search=proto&page=1&page_size=2")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 5
+    assert len(data["items"]) == 2
+    assert data["has_next"] is True

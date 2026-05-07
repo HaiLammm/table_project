@@ -25,7 +25,9 @@ class InMemoryUndoRepository(SrsCardRepository):
         self._next_review_id = 1
         self.rollback_called = False
 
-    async def get_queue_stats(self, user_id: int, now: datetime) -> QueueStats:
+    async def get_queue_stats(
+        self, user_id: int, now: datetime, collection_id: int | None = None
+    ) -> QueueStats:
         return QueueStats(due_count=0, overdue_count=0, estimated_minutes=0)
 
     async def list_due_cards(
@@ -35,6 +37,7 @@ class InMemoryUndoRepository(SrsCardRepository):
         mode: QueueMode,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DueCardsPage:
         return DueCardsPage(items=[], total_count=0, mode=mode, limit=limit, offset=offset)
 
@@ -95,6 +98,11 @@ class InMemoryUndoRepository(SrsCardRepository):
 
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
         return 0
+
+    async def find_term_ids_without_cards(
+        self, user_id: int, collection_id: int, language: str
+    ) -> list[int]:
+        return []
 
     async def count_due_cards_by_buckets(
         self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime

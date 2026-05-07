@@ -54,6 +54,8 @@ async def test_review_scheduling_service_persists_card_state_and_review_log(
         rating=Rating.GOOD,
         response_time_ms=1250,
         session_id=uuid4(),
+        session_length_s=720,
+        parallel_mode_active=True,
     )
 
     stored_card = await repository.get_card_by_id(created.id or 0, user.id)
@@ -71,6 +73,8 @@ async def test_review_scheduling_service_persists_card_state_and_review_log(
     assert stored_review.user_id == user.id
     assert stored_review.rating == 3
     assert stored_review.response_time_ms == 1250
+    assert stored_review.session_length_s == 720
+    assert stored_review.parallel_mode_active is True
 
 
 async def test_repository_lists_due_cards_in_overdue_due_new_order(
@@ -119,7 +123,7 @@ async def test_repository_lists_due_cards_in_overdue_due_new_order(
         offset=0,
     )
 
-    assert [card.term_id for card in due_cards.items] == [1, 2, 3]
+    assert [item.card.term_id for item in due_cards.items] == [1, 2, 3]
 
 
 async def test_repository_rejects_duplicate_cards_with_db_constraint(

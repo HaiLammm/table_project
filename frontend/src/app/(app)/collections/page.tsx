@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, FolderOpen, X } from "lucide-react";
+import { type FormEvent, useCallback, useState } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, FolderOpen, Search, X } from "lucide-react";
 
 import { AddWordsDialog } from "@/components/collections/AddWordsDialog";
 import { CollectionCard } from "@/components/collections";
@@ -37,8 +37,9 @@ import {
   useRemoveTermFromCollection,
   useUpdateCollection,
 } from "@/hooks/useCollections";
+import { useStartCollectionReview } from "@/hooks/useStartCollectionReview";
 import { ApiClientError } from "@/lib/api-client";
-import type { Collection, CollectionTerm } from "@/types/collection";
+import type { Collection, CollectionTerm, CollectionTermMasteryStatus } from "@/types/collection";
 
 const ICON_OPTIONS = [
   "📚",
@@ -163,7 +164,21 @@ interface CollectionDetailProps {
   onNextPage: () => void;
   onRemoveTerm: (term: CollectionTerm) => void;
   isRemovingTerm: boolean;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  masteryFilter: CollectionTermMasteryStatus | null;
+  onMasteryFilterChange: (filter: CollectionTermMasteryStatus | null) => void;
+  totalResults: number;
+  onStartReview: () => void;
+  isStartingReview: boolean;
 }
+
+const MASTERY_FILTERS: { label: string; value: CollectionTermMasteryStatus | null }[] = [
+  { label: "All", value: null },
+  { label: "New", value: "new" },
+  { label: "Learning", value: "learning" },
+  { label: "Mastered", value: "mastered" },
+];
 
 function CollectionDetail({
   collection,
@@ -180,9 +195,28 @@ function CollectionDetail({
   onNextPage,
   onRemoveTerm,
   isRemovingTerm,
+  searchQuery,
+  onSearchChange,
+  masteryFilter,
+  onMasteryFilterChange,
+  totalResults,
+  onStartReview,
+  isStartingReview,
 }: CollectionDetailProps) {
   return (
     <section className="space-y-6">
+      <nav className="text-sm text-zinc-500">
+        <button
+          type="button"
+          onClick={onBack}
+          className="hover:text-zinc-700 transition-colors"
+        >
+          Collections
+        </button>
+        <span className="mx-2">&gt;</span>
+        <span className="text-zinc-700">{collection.name}</span>
+      </nav>
+
       <div className="space-y-4 rounded-[16px] border border-zinc-200 bg-zinc-100 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-3">
@@ -206,9 +240,19 @@ function CollectionDetail({
             </div>
           </div>
 
-          <Button type="button" onClick={onAddWords} className="bg-zinc-900 text-zinc-50 hover:bg-zinc-800">
-            Add Words
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onStartReview}
+              disabled={isStartingReview}
+              className="inline-flex items-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isStartingReview ? "Loading..." : "Start Learning"}
+            </button>
+            <Button type="button" onClick={onAddWords} className="bg-zinc-900 text-zinc-50 hover:bg-zinc-800">
+              Add Words
+            </Button>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -235,6 +279,47 @@ function CollectionDetail({
           </div>
         </div>
 
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="text"
+              placeholder="Search terms..."
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              className="w-full rounded-md border border-zinc-200 bg-white py-2 pl-9 pr-3 text-sm text-text-primary placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-ring"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => onSearchChange("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              >
+                <X className="size-4" />
+              </button>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-1">
+            {MASTERY_FILTERS.map((filter) => {
+              const isActive = masteryFilter === filter.value;
+              return (
+                <button
+                  key={filter.label}
+                  type="button"
+                  onClick={() => onMasteryFilterChange(filter.value)}
+                  className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                    isActive
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, index) => (
@@ -253,19 +338,38 @@ function CollectionDetail({
         ) : null}
 
         {!isLoading && !isError && terms.length === 0 ? (
-          <div className="flex min-h-[30vh] flex-col items-center justify-center gap-3 rounded-[14px] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center">
-            <p className="text-lg font-semibold text-text-primary">No terms yet</p>
-            <p className="max-w-md text-sm text-text-secondary">
-              Add words manually, browse the corpus, or import a CSV file to start building this study set.
-            </p>
-            <Button type="button" onClick={onAddWords} className="bg-zinc-900 text-zinc-50 hover:bg-zinc-800">
-              Add Words
-            </Button>
-          </div>
+          searchQuery || masteryFilter ? (
+            <div className="flex min-h-[30vh] flex-col items-center justify-center gap-3 rounded-[14px] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center">
+              <p className="text-lg font-semibold text-text-primary">No terms match your search</p>
+              <button
+                type="button"
+                onClick={() => {
+                  onSearchChange("");
+                  onMasteryFilterChange(null);
+                }}
+                className="text-sm text-zinc-500 underline hover:text-zinc-700"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <div className="flex min-h-[30vh] flex-col items-center justify-center gap-3 rounded-[14px] border border-dashed border-zinc-300 bg-zinc-50 px-6 py-10 text-center">
+              <p className="text-lg font-semibold text-text-primary">No terms yet</p>
+              <p className="max-w-md text-sm text-text-secondary">
+                Add words manually, browse the corpus, or import a CSV file to start building this study set.
+              </p>
+              <Button type="button" onClick={onAddWords} className="bg-zinc-900 text-zinc-50 hover:bg-zinc-800">
+                Add Words
+              </Button>
+            </div>
+          )
         ) : null}
 
         {!isLoading && !isError && terms.length > 0 ? (
           <div className="space-y-3">
+            {(searchQuery || masteryFilter) && !isLoading ? (
+              <p className="text-sm text-text-secondary">{totalResults} result{totalResults !== 1 ? "s" : ""}</p>
+            ) : null}
             {terms.map((term) => (
               <div
                 key={term.term_id}
@@ -342,13 +446,42 @@ export default function CollectionsPage() {
   const [collectionToDelete, setCollectionToDelete] = useState<Collection | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(null);
   const [termsPage, setTermsPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [masteryFilter, setMasteryFilter] = useState<CollectionTermMasteryStatus | null>(null);
 
   const collections = collectionsQuery.data?.items ?? [];
   const selectedCollection = collections.find((collection) => collection.id === selectedCollectionId) ?? null;
 
-  const termsQuery = useCollectionTerms(selectedCollectionId, termsPage);
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+    setTermsPage(1);
+  }, []);
+
+  const handleMasteryFilterChange = useCallback((filter: CollectionTermMasteryStatus | null) => {
+    setMasteryFilter(filter);
+    setTermsPage(1);
+  }, []);
+
+  const termsQuery = useCollectionTerms(selectedCollectionId, termsPage, searchQuery, masteryFilter);
   const removeTerm = useRemoveTermFromCollection(selectedCollectionId ?? 0);
   const addTermToCollection = useAddTermToCollection(selectedCollectionId ?? 0);
+  const startCollectionReview = useStartCollectionReview(selectedCollectionId ?? 0);
+
+  async function handleStartReview() {
+    if (selectedCollectionId === null) return;
+
+    try {
+      const result = await startCollectionReview.mutateAsync();
+      if (result.created_count > 0) {
+        toast.success(`Created ${result.created_count} new review card${result.created_count > 1 ? "s" : ""}`);
+      }
+      if (startCollectionReview.isError) {
+        toast.error("Failed to start review session");
+      }
+    } catch {
+      toast.error("Failed to start review session");
+    }
+  }
 
   async function handleCreateCollection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -468,6 +601,8 @@ export default function CollectionsPage() {
           onBack={() => {
             setSelectedCollectionId(null);
             setTermsPage(1);
+            setSearchQuery("");
+            setMasteryFilter(null);
             setIsAddWordsDialogOpen(false);
           }}
           onAddWords={() => setIsAddWordsDialogOpen(true)}
@@ -475,6 +610,13 @@ export default function CollectionsPage() {
           onNextPage={() => setTermsPage((current) => current + 1)}
           onRemoveTerm={(term) => void handleRemoveTerm(term)}
           isRemovingTerm={removeTerm.isPending}
+          searchQuery={searchQuery}
+          onSearchChange={handleSearchChange}
+          masteryFilter={masteryFilter}
+          onMasteryFilterChange={handleMasteryFilterChange}
+          totalResults={termsQuery.data?.total ?? 0}
+          onStartReview={handleStartReview}
+          isStartingReview={startCollectionReview.isPending}
         />
       ) : collections.length === 0 ? (
         <EmptyState onCreate={() => setIsCreateDialogOpen(true)} />
@@ -498,6 +640,8 @@ export default function CollectionsPage() {
                 onClick={() => {
                   setSelectedCollectionId(collection.id);
                   setTermsPage(1);
+                  setSearchQuery("");
+                  setMasteryFilter(null);
                   setIsAddWordsDialogOpen(false);
                 }}
                 onRename={(nextName) => handleRenameCollection(collection.id, nextName)}

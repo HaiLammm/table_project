@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from math import ceil
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import structlog
@@ -10,7 +11,6 @@ from src.app.modules.srs.domain.entities import (
     QueueStats,
     Review,
     ReviewResult,
-    ScheduleBucket,
     SessionStats,
     SrsCard,
     UpcomingSchedule,
@@ -22,6 +22,9 @@ from src.app.modules.srs.domain.exceptions import (
 )
 from src.app.modules.srs.domain.interfaces import SrsCardRepository
 from src.app.modules.srs.domain.value_objects import FSRSState, QueueMode, Rating
+
+if TYPE_CHECKING:
+    from src.app.modules.collections.application.services import CollectionService
 
 logger = structlog.get_logger().bind(module="srs_service")
 
@@ -42,8 +45,10 @@ class QueueStatsService:
     def __init__(self, srs_card_repository: SrsCardRepository) -> None:
         self._srs_card_repository = srs_card_repository
 
-    async def get_queue_stats(self, user_id: int) -> QueueStats:
-        queue_stats = await self._srs_card_repository.get_queue_stats(user_id, datetime.now(UTC))
+    async def get_queue_stats(self, user_id: int, collection_id: int | None = None) -> QueueStats:
+        queue_stats = await self._srs_card_repository.get_queue_stats(
+            user_id, datetime.now(UTC), collection_id=collection_id
+        )
         estimated_minutes = queue_stats.estimated_minutes
         if estimated_minutes == 0 and queue_stats.due_count > 0:
             estimated_minutes = ceil(queue_stats.due_count * 10 / 60)
@@ -60,6 +65,7 @@ class QueueStatsService:
         mode: QueueMode,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DueCardsPage:
         effective_limit = 30 if mode is QueueMode.CATCHUP else limit
         effective_offset = 0 if mode is QueueMode.CATCHUP else offset
@@ -69,6 +75,7 @@ class QueueStatsService:
             mode=mode,
             limit=effective_limit,
             offset=effective_offset,
+            collection_id=collection_id,
         )
 
     async def get_upcoming_schedule(self, user_id: int) -> UpcomingSchedule:
@@ -94,9 +101,11 @@ class ReviewSchedulingService:
         self,
         srs_card_repository: SrsCardRepository,
         scheduler: Scheduler | None = None,
+        collection_service: "CollectionService | None" = None,
     ) -> None:
         self._srs_card_repository = srs_card_repository
         self._scheduler = scheduler or Scheduler()
+        self._collection_service = collection_service
 
     async def create_card_for_term(self, user_id: int, term_id: int, language: str) -> SrsCard:
         fsrs_card = Card()
@@ -120,12 +129,51 @@ class ReviewSchedulingService:
         )
         return created_card
 
+    async def create_cards_for_collection(
+        self,
+        user_id: int,
+        collection_id: int,
+        language: str = "en",
+    ) -> tuple[int, int]:
+        if self._collection_service is not None:
+            await self._collection_service.get_collection(
+                collection_id=collection_id, user_id=user_id
+            )
+
+        missing_term_ids = await self._srs_card_repository.find_term_ids_without_cards(
+            user_id=user_id,
+            collection_id=collection_id,
+            language=language,
+        )
+
+        created_count = 0
+        skipped_count = 0
+        for term_id in missing_term_ids:
+            try:
+                await self.create_card_for_term(
+                    user_id=user_id, term_id=term_id, language=language
+                )
+                created_count += 1
+            except Exception:
+                skipped_count += 1
+
+        logger.info(
+            "srs_cards_created_for_collection",
+            user_id=user_id,
+            collection_id=collection_id,
+            created_count=created_count,
+            skipped_count=skipped_count,
+        )
+        return created_count, skipped_count
+
     async def review_card(
         self,
         card_id: int,
         user_id: int,
         rating: Rating,
         response_time_ms: int | None = None,
+        session_length_s: int | None = None,
+        parallel_mode_active: bool = False,
         session_id: UUID | None = None,
     ) -> ReviewResult:
         stored_card = await self._srs_card_repository.get_card_by_id_for_update(card_id, user_id)
@@ -185,6 +233,8 @@ class ReviewSchedulingService:
                     rating=rating,
                     reviewed_at=review_log.review_datetime,
                     response_time_ms=response_time_ms,
+                    session_length_s=session_length_s,
+                    parallel_mode_active=parallel_mode_active,
                     session_id=session_id,
                     previous_fsrs_state=previous_state["fsrs_state"],
                     previous_stability=previous_state["stability"],
@@ -202,6 +252,7 @@ class ReviewSchedulingService:
             user_id=user_id,
             card_id=card_id,
             rating=rating.value,
+            parallel_mode_active=parallel_mode_active,
         )
         return ReviewResult(
             card=persisted_card,

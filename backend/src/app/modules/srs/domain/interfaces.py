@@ -59,7 +59,9 @@ class SrsCardRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_queue_stats(self, user_id: int, now: datetime) -> QueueStats:
+    async def get_queue_stats(
+        self, user_id: int, now: datetime, collection_id: int | None = None
+    ) -> QueueStats:
         raise NotImplementedError
 
     @abstractmethod
@@ -70,6 +72,7 @@ class SrsCardRepository(ABC):
         mode: QueueMode,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DueCardsPage:
         raise NotImplementedError
 
@@ -79,6 +82,12 @@ class SrsCardRepository(ABC):
 
     @abstractmethod
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def find_term_ids_without_cards(
+        self, user_id: int, collection_id: int, language: str
+    ) -> list[int]:
         raise NotImplementedError
 
     @abstractmethod

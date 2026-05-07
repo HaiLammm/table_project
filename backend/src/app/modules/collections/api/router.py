@@ -193,12 +193,16 @@ async def get_collection_terms(
     service: CollectionServiceDependency,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    search: Annotated[str | None, Query()] = None,
+    mastery_status: Annotated[str | None, Query()] = None,
 ) -> CollectionTermListResponse:
     result = await service.get_collection_terms(
         user_id=_require_user_id(current_user),
         collection_id=collection_id,
         page=page,
         page_size=page_size,
+        search=search,
+        mastery_status=mastery_status,
     )
     return CollectionTermListResponse(
         items=[CollectionTermResponse.model_validate(item) for item in result["items"]],

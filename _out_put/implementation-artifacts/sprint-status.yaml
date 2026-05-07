@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: "2026-05-05"
-last_updated: "2026-05-07"  # story 5-2 moved to review (dev-story)
+last_updated: "2026-05-07"  # story 6-1 moved to review (dev-story)
 project: table_project
 project_key: NOKEY
 tracking_system: file-system
@@ -86,13 +86,13 @@ development_status:
   epic-5: in-progress
   5-1-collection-crud-data-model: review
   5-2-add-remove-terms-from-collections: review
-  5-3-browse-collection-contents-detail-view: backlog
-  5-4-start-learning-session-from-collection: backlog
+  5-3-browse-collection-contents-detail-view: review
+  5-4-start-learning-session-from-collection: ready-for-dev
   epic-5-retrospective: optional
 
   # Epic 6: Learning Diagnostics & Progress Dashboard
-  epic-6: backlog
-  6-1-diagnostic-signal-capture-pattern-detection: backlog
+  epic-6: in-progress
+  6-1-diagnostic-signal-capture-pattern-detection: review
   6-2-progress-dashboard-stats-metrics: backlog
   6-3-activity-chart-calendar-views: backlog
   6-4-diagnostic-insights-dashboard: backlog

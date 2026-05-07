@@ -8,8 +8,10 @@ export const userKeys = {
 
 export const srsKeys = {
   all: ["srs"] as const,
-  queueStats: () => [...srsKeys.all, "queue-stats"] as const,
-  queue: (mode: "full" | "catchup") => [...srsKeys.all, "queue", mode] as const,
+  queueStats: (collectionId?: number) =>
+    [...srsKeys.all, "queue-stats", collectionId ?? null] as const,
+  queue: (mode: "full" | "catchup", collectionId?: number) =>
+    [...srsKeys.all, "queue", mode, collectionId ?? null] as const,
   card: (id: number) => [...srsKeys.all, "card", id] as const,
   dueCards: () => [...srsKeys.all, "due-cards"] as const,
   sessionStats: (sessionId: string) => [...srsKeys.all, "session-stats", sessionId] as const,

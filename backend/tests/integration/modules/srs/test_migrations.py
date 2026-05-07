@@ -15,7 +15,7 @@ from src.app.core.config import settings
 
 ALEMBIC_INI_PATH = Path(__file__).resolve().parents[4] / "alembic.ini"
 SRS_BASELINE_REVISION = "5c2e3a4f9b11"
-SRS_HEAD_REVISION = "2e7d2c4c9f10"
+SRS_HEAD_REVISION = "b8d0a9c4e271"
 
 SchemaSnapshot = dict[str, set[str]]
 
@@ -88,6 +88,13 @@ async def _inspect_srs_schema() -> SchemaSnapshot:
                 "indexes": {
                     index["name"] for index in inspect(sync_connection).get_indexes("srs_cards")
                 },
+                "review_columns": {
+                    column["name"]
+                    for column in inspect(sync_connection).get_columns("srs_reviews")
+                },
+                "review_indexes": {
+                    index["name"] for index in inspect(sync_connection).get_indexes("srs_reviews")
+                },
                 "unique_constraints": {
                     constraint["name"]
                     for constraint in inspect(sync_connection).get_unique_constraints("srs_cards")
@@ -131,6 +138,9 @@ def test_srs_migration_backfills_legacy_cards_and_adds_constraints(
 
         schema = _run_async(_inspect_srs_schema())
         migrated_card = _run_async(_fetch_card(legacy_card_id))
+
+        command.downgrade(alembic_config, "8b2c4d6e7f80")
+        downgraded_schema = _run_async(_inspect_srs_schema())
     finally:
         _run_async(_reset_public_schema())
 
@@ -154,6 +164,11 @@ def test_srs_migration_backfills_legacy_cards_and_adds_constraints(
     }.issubset(schema["columns"])
     assert "ix_srs_cards_user_id_due_at" in schema["indexes"]
     assert "uq_srs_cards_user_id_term_id_language" in schema["unique_constraints"]
+    assert {"session_length_s", "parallel_mode_active"}.issubset(schema["review_columns"])
+    assert "ix_srs_reviews_user_reviewed" in schema["review_indexes"]
+    assert "session_length_s" not in downgraded_schema["review_columns"]
+    assert "parallel_mode_active" not in downgraded_schema["review_columns"]
+    assert "ix_srs_reviews_user_reviewed" not in downgraded_schema["review_indexes"]
     assert migrated_card["language"] == "en"
     assert migrated_card["reps"] == 0
     assert migrated_card["lapses"] == 0

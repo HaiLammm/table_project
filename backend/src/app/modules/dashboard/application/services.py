@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from statistics import mean
 from uuid import UUID
@@ -10,6 +10,12 @@ from src.app.modules.dashboard.domain.interfaces import DiagnosticRepository, Re
 from src.app.modules.dashboard.domain.value_objects import PatternType
 
 logger = structlog.get_logger().bind(module="dashboard_service")
+
+MIN_TIME_OF_DAY_DATA_DAYS = 7
+MIN_TIME_OF_DAY_REVIEWS = 50
+MIN_CATEGORY_REVIEWS = 30
+MIN_PARALLEL_REVIEWS_PER_TERM = 20
+SIGNIFICANT_ACCURACY_DELTA = 0.15
 
 
 class DiagnosticsService:
@@ -35,13 +41,17 @@ class DiagnosticsService:
         confidence_score = _confidence_score(data_age_days)
         insights: list[DiagnosticInsight] = []
 
-        time_of_day_insight = _detect_time_of_day_pattern(
-            user_id=user_id,
-            analytics=analytics,
-            confidence_score=confidence_score,
-        )
-        if time_of_day_insight is not None:
-            insights.append(time_of_day_insight)
+        if (
+            data_age_days >= MIN_TIME_OF_DAY_DATA_DAYS
+            and len(analytics) >= MIN_TIME_OF_DAY_REVIEWS
+        ):
+            time_of_day_insight = _detect_time_of_day_pattern(
+                user_id=user_id,
+                analytics=analytics,
+                confidence_score=confidence_score,
+            )
+            if time_of_day_insight is not None:
+                insights.append(time_of_day_insight)
 
         if confidence_score >= 0.8:
             category_insight = _detect_category_weakness(
@@ -51,6 +61,14 @@ class DiagnosticsService:
             )
             if category_insight is not None:
                 insights.append(category_insight)
+
+            cross_language_insight = _detect_cross_language_interference(
+                user_id=user_id,
+                analytics=analytics,
+                confidence_score=confidence_score,
+            )
+            if cross_language_insight is not None:
+                insights.append(cross_language_insight)
 
             response_time_insight = _detect_response_time_anomaly(
                 user_id=user_id,
@@ -153,6 +171,11 @@ def _detect_time_of_day_pattern(
     analytics: list[ReviewAnalyticsRow],
     confidence_score: float,
 ) -> DiagnosticInsight | None:
+    if _data_age_days(analytics) < MIN_TIME_OF_DAY_DATA_DAYS:
+        return None
+    if len(analytics) < MIN_TIME_OF_DAY_REVIEWS:
+        return None
+
     grouped: dict[str, list[ReviewAnalyticsRow]] = defaultdict(list)
     for row in analytics:
         grouped[_period_for_hour(row["reviewed_at"].hour)].append(row)
@@ -165,7 +188,7 @@ def _detect_time_of_day_pattern(
     best_period = max(accuracies, key=accuracies.get)
     worst_period = min(accuracies, key=accuracies.get)
     delta = accuracies[best_period] - accuracies[worst_period]
-    if delta < 0.15:
+    if delta < SIGNIFICANT_ACCURACY_DELTA:
         return None
 
     action_label, action_href = _dashboard_link(confidence_score)
@@ -206,7 +229,9 @@ def _detect_category_weakness(
         if category:
             grouped[category].append(row)
 
-    eligible = {category: rows for category, rows in grouped.items() if len(rows) >= 3}
+    eligible = {
+        category: rows for category, rows in grouped.items() if len(rows) >= MIN_CATEGORY_REVIEWS
+    }
     if len(eligible) < 2:
         return None
 
@@ -215,7 +240,7 @@ def _detect_category_weakness(
     weakest_category = min(category_accuracies, key=category_accuracies.get)
     weakest_accuracy = category_accuracies[weakest_category]
     gap = overall_average - weakest_accuracy
-    if gap < 0.15:
+    if gap < SIGNIFICANT_ACCURACY_DELTA:
         return None
 
     action_label, action_href = _dashboard_link(confidence_score)
@@ -263,6 +288,72 @@ def _detect_response_time_anomaly(
         text=(
             f"Cards taking over 10s are forgotten {round(delta * 100)}% more often. "
             "Consider breaking them into smaller chunks."
+        ),
+        action_label=action_label,
+        action_href=action_href,
+        confidence_score=confidence_score,
+    )
+
+
+def _detect_cross_language_interference(
+    *,
+    user_id: int,
+    analytics: list[ReviewAnalyticsRow],
+    confidence_score: float,
+) -> DiagnosticInsight | None:
+    grouped: dict[int, list[ReviewAnalyticsRow]] = defaultdict(list)
+    for row in analytics:
+        term_id = row["term_id"]
+        if term_id is not None:
+            grouped[term_id].append(row)
+
+    best_candidate: (
+        tuple[float, list[ReviewAnalyticsRow], list[ReviewAnalyticsRow], str | None, str] | None
+    ) = None
+    for term_rows in grouped.values():
+        parallel_rows = [row for row in term_rows if row["parallel_mode_active"] is True]
+        if len(parallel_rows) < MIN_PARALLEL_REVIEWS_PER_TERM:
+            continue
+
+        non_parallel_rows = [row for row in term_rows if row["parallel_mode_active"] is not True]
+        if not non_parallel_rows:
+            continue
+
+        parallel_accuracy = _accuracy(parallel_rows)
+        non_parallel_accuracy = _accuracy(non_parallel_rows)
+        delta = non_parallel_accuracy - parallel_accuracy
+        if delta < SIGNIFICANT_ACCURACY_DELTA:
+            continue
+
+        language_counts = Counter(row["language"] for row in parallel_rows if row["language"])
+        representative_language = None
+        if language_counts:
+            representative_language = max(language_counts, key=language_counts.get)
+
+        term_text = next(
+            (row["term_text"] for row in term_rows if row["term_text"]),
+            "this term",
+        )
+        candidate = (delta, parallel_rows, non_parallel_rows, representative_language, term_text)
+        if best_candidate is None or delta > best_candidate[0]:
+            best_candidate = candidate
+
+    if best_candidate is None:
+        return None
+
+    delta, parallel_rows, _non_parallel_rows, representative_language, term_text = best_candidate
+    loss = round(delta * 100)
+    language_prefix = f"{representative_language.upper()} " if representative_language else ""
+    action_label, action_href = _dashboard_link(confidence_score)
+    return DiagnosticInsight(
+        user_id=user_id,
+        type=PatternType.CROSS_LANGUAGE_INTERFERENCE,
+        severity="warning",
+        icon="languages",
+        title="Parallel reviews may be interfering",
+        text=(
+            f"{language_prefix}retention for {term_text} drops {loss}% in parallel mode "
+            f"across {len(parallel_rows)} reviews."
         ),
         action_label=action_label,
         action_href=action_href,

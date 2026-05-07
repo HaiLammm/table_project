@@ -25,7 +25,9 @@ class InMemoryReviewRepository(SrsCardRepository):
         self._next_review_id = 1
         self.rollback_called = False
 
-    async def get_queue_stats(self, user_id: int, now: datetime) -> QueueStats:
+    async def get_queue_stats(
+        self, user_id: int, now: datetime, collection_id: int | None = None
+    ) -> QueueStats:
         due_cards = [
             card for card in self._cards.values() if card.user_id == user_id and card.due_at <= now
         ]
@@ -42,6 +44,7 @@ class InMemoryReviewRepository(SrsCardRepository):
         mode: QueueMode,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DueCardsPage:
         items = sorted(
             [
@@ -121,6 +124,11 @@ class InMemoryReviewRepository(SrsCardRepository):
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
         return 0
 
+    async def find_term_ids_without_cards(
+        self, user_id: int, collection_id: int, language: str
+    ) -> list[int]:
+        return []
+
     async def count_due_cards_by_buckets(
         self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
     ):
@@ -174,6 +182,8 @@ async def test_review_scheduling_service_transitions_fsrs_state_for_each_rating(
         rating=rating,
         response_time_ms=1800,
         session_id=uuid4(),
+        session_length_s=600,
+        parallel_mode_active=True,
     )
 
     assert isinstance(review_result, ReviewResult)
@@ -188,6 +198,8 @@ async def test_review_scheduling_service_transitions_fsrs_state_for_each_rating(
     assert len(repository.reviews) == 1
     assert repository.reviews[0].rating is rating
     assert repository.reviews[0].response_time_ms == 1800
+    assert repository.reviews[0].session_length_s == 600
+    assert repository.reviews[0].parallel_mode_active is True
 
 
 async def test_review_scheduling_service_creates_independent_cards_per_language() -> None:

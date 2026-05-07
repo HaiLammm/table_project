@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useApiClient } from "@/lib/api-client";
@@ -14,6 +15,7 @@ import type {
   CollectionListResponse,
   CollectionResponse,
   CollectionTermListResponse,
+  CollectionTermMasteryStatus,
   CollectionUpdateRequest,
 } from "@/types/collection";
 
@@ -42,25 +44,56 @@ function withUpdatedTermCount(collection: Collection, delta: number): Collection
   };
 }
 
+function useDebounce(value: string, delay: number): string {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export function useCollections() {
   const apiClient = useApiClient();
 
   return useQuery({
     queryKey: collectionKeys.list(),
     queryFn: () => apiClient<CollectionListResponse>("/collections"),
+    staleTime: 5 * 60_000,
   });
 }
 
-export function useCollectionTerms(collectionId: number | null, page: number) {
+export function useCollectionTerms(
+  collectionId: number | null,
+  page: number,
+  search?: string,
+  masteryStatus?: CollectionTermMasteryStatus | null,
+) {
   const apiClient = useApiClient();
+  const debouncedSearch = useDebounce(search ?? "", 200);
+  const effectiveSearch = debouncedSearch.length >= 2 ? debouncedSearch : undefined;
+  const effectiveMasteryStatus = masteryStatus ?? undefined;
 
   return useQuery({
     queryKey:
       collectionId === null
         ? [...collectionKeys.all, "terms", "disabled"]
-        : [...collectionKeys.terms(collectionId), page],
+        : [...collectionKeys.terms(collectionId), { page, search: effectiveSearch, mastery_status: effectiveMasteryStatus }],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), page_size: "20" });
+      if (effectiveSearch) {
+        params.set("search", effectiveSearch);
+      }
+      if (effectiveMasteryStatus) {
+        params.set("mastery_status", effectiveMasteryStatus);
+      }
       return apiClient<CollectionTermListResponse>(
         `/collections/${collectionId}/terms?${params.toString()}`,
       );

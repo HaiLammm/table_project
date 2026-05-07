@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import UUID as PythonUUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
@@ -76,6 +77,7 @@ class SrsReviewModel(Base):
         CheckConstraint("rating BETWEEN 1 AND 4", name="ck_srs_reviews_rating"),
         Index("ix_srs_reviews_card_id", "card_id"),
         Index("ix_srs_reviews_user_id", "user_id"),
+        Index("ix_srs_reviews_user_reviewed", "user_id", "reviewed_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -93,6 +95,13 @@ class SrsReviewModel(Base):
         server_default=func.now(),
     )
     response_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    session_length_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    parallel_mode_active: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+        default=False,
+        server_default=text("false"),
+    )
     session_id: Mapped[PythonUUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     previous_fsrs_state: Mapped[dict[str, object] | None] = mapped_column(
         JSONB,

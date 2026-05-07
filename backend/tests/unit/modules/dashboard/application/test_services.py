@@ -2,9 +2,15 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from src.app.modules.dashboard.application.services import DiagnosticsService
+from src.app.modules.dashboard.application.services import (
+    DiagnosticsService,
+    _detect_category_weakness,
+    _detect_cross_language_interference,
+    _detect_time_of_day_pattern,
+)
 from src.app.modules.dashboard.domain.entities import DiagnosticInsight
 from src.app.modules.dashboard.domain.interfaces import DiagnosticRepository, ReviewAnalyticsRow
+from src.app.modules.dashboard.domain.value_objects import PatternType
 
 
 class InMemoryDiagnosticRepository(DiagnosticRepository):
@@ -67,6 +73,11 @@ def make_row(
     rating: int,
     response_time_ms: int | None,
     category: str | None,
+    language: str = "en",
+    parallel_mode_active: bool = False,
+    term_id: int | None = 101,
+    card_id: int = 201,
+    term_text: str = "protocol",
 ) -> ReviewAnalyticsRow:
     reviewed_at = datetime.now(UTC) - timedelta(days=days_ago)
     reviewed_at = reviewed_at.replace(hour=hour, minute=0, second=0, microsecond=0)
@@ -75,7 +86,11 @@ def make_row(
         "rating": rating,
         "response_time_ms": response_time_ms,
         "term_category": category,
-        "term_text": "protocol",
+        "term_text": term_text,
+        "language": language,
+        "parallel_mode_active": parallel_mode_active,
+        "term_id": term_id,
+        "card_id": card_id,
     }
 
 
@@ -94,14 +109,20 @@ async def test_compute_insights_returns_empty_with_less_than_three_days_of_histo
     assert repository.insights == []
 
 
-async def test_compute_insights_generates_low_confidence_micro_aha_for_early_history() -> None:
+async def test_compute_insights_skips_time_of_day_when_review_count_is_below_fifty() -> None:
     analytics = []
-    for days_ago in range(4):
+    for days_ago in range(8):
         analytics.append(
             make_row(days_ago=days_ago, hour=8, rating=4, response_time_ms=1100, category="noun")
         )
         analytics.append(
             make_row(days_ago=days_ago, hour=20, rating=1, response_time_ms=12000, category="verb")
+        )
+        analytics.append(
+            make_row(days_ago=days_ago, hour=13, rating=4, response_time_ms=1500, category="verb")
+        )
+        analytics.append(
+            make_row(days_ago=days_ago, hour=15, rating=4, response_time_ms=1600, category="noun")
         )
 
     repository = InMemoryDiagnosticRepository(analytics)
@@ -109,17 +130,12 @@ async def test_compute_insights_generates_low_confidence_micro_aha_for_early_his
 
     insights = await service.compute_insights(user_id=7)
 
-    assert len(insights) == 1
-    assert insights[0].title == "Quick insight"
-    assert "morning" in insights[0].text
-    assert insights[0].confidence_score == 0.5
-    assert insights[0].action_href is None
-    assert insights[0].delivery_interval == 10
+    assert all(insight.type is not PatternType.TIME_OF_DAY_PATTERN for insight in insights)
 
 
 async def test_compute_insights_generates_full_diagnostics_after_two_weeks() -> None:
     analytics = []
-    for days_ago in range(16):
+    for days_ago in range(15):
         analytics.append(
             make_row(days_ago=days_ago, hour=8, rating=4, response_time_ms=900, category="noun")
         )
@@ -127,7 +143,10 @@ async def test_compute_insights_generates_full_diagnostics_after_two_weeks() -> 
             make_row(days_ago=days_ago, hour=20, rating=1, response_time_ms=15000, category="verb")
         )
         analytics.append(
-            make_row(days_ago=days_ago, hour=13, rating=3, response_time_ms=1800, category="noun")
+            make_row(days_ago=days_ago, hour=13, rating=4, response_time_ms=1800, category="noun")
+        )
+        analytics.append(
+            make_row(days_ago=days_ago, hour=16, rating=4, response_time_ms=1500, category="verb")
         )
 
     repository = InMemoryDiagnosticRepository(analytics)
@@ -139,6 +158,227 @@ async def test_compute_insights_generates_full_diagnostics_after_two_weeks() -> 
     assert all(insight.confidence_score == 1.0 for insight in insights)
     assert any(insight.action_href == "/dashboard" for insight in insights)
     assert {insight.delivery_interval for insight in insights} == {5}
+
+
+def test_time_of_day_pattern_skips_when_history_is_shorter_than_seven_days() -> None:
+    analytics = [
+        make_row(days_ago=days_ago % 6, hour=8, rating=4, response_time_ms=1000, category="noun")
+        for days_ago in range(30)
+    ]
+    analytics.extend(
+        make_row(days_ago=days_ago % 6, hour=22, rating=1, response_time_ms=1000, category="noun")
+        for days_ago in range(30)
+    )
+
+    insight = _detect_time_of_day_pattern(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is None
+
+
+def test_time_of_day_pattern_skips_when_review_count_is_below_fifty() -> None:
+    analytics = []
+    for days_ago in range(7):
+        analytics.append(
+            make_row(days_ago=days_ago, hour=8, rating=4, response_time_ms=1000, category="noun")
+        )
+        analytics.append(
+            make_row(days_ago=days_ago, hour=22, rating=1, response_time_ms=1000, category="noun")
+        )
+
+    insight = _detect_time_of_day_pattern(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is None
+
+
+def test_time_of_day_pattern_detects_when_thresholds_are_met() -> None:
+    analytics = []
+    for days_ago in range(10):
+        analytics.extend(
+            make_row(days_ago=days_ago, hour=8, rating=4, response_time_ms=1000, category="noun")
+            for _ in range(3)
+        )
+        analytics.extend(
+            make_row(days_ago=days_ago, hour=22, rating=1, response_time_ms=1000, category="noun")
+            for _ in range(3)
+        )
+
+    insight = _detect_time_of_day_pattern(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is not None
+    assert insight.type is PatternType.TIME_OF_DAY_PATTERN
+
+
+def test_category_weakness_skips_when_each_category_has_fewer_than_thirty_reviews() -> None:
+    analytics = []
+    for days_ago in range(10):
+        analytics.extend(
+            make_row(days_ago=days_ago, hour=8, rating=4, response_time_ms=1000, category="noun")
+            for _ in range(2)
+        )
+        analytics.extend(
+            make_row(days_ago=days_ago, hour=20, rating=1, response_time_ms=1000, category="verb")
+            for _ in range(2)
+        )
+
+    insight = _detect_category_weakness(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is None
+
+
+def test_category_weakness_detects_when_categories_meet_threshold() -> None:
+    analytics = []
+    for days_ago in range(15):
+        analytics.extend(
+            make_row(days_ago=days_ago, hour=8, rating=4, response_time_ms=1000, category="noun")
+            for _ in range(2)
+        )
+        analytics.extend(
+            make_row(days_ago=days_ago, hour=20, rating=1, response_time_ms=1000, category="verb")
+            for _ in range(2)
+        )
+
+    insight = _detect_category_weakness(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is not None
+    assert insight.type is PatternType.CATEGORY_SPECIFIC_WEAKNESS
+
+
+def test_cross_language_interference_skips_when_parallel_reviews_are_below_threshold() -> None:
+    analytics = [
+        make_row(
+            days_ago=index % 10,
+            hour=20,
+            rating=1,
+            response_time_ms=1200,
+            category="noun",
+            parallel_mode_active=True,
+            term_id=501,
+            card_id=900 + index,
+        )
+        for index in range(19)
+    ]
+    analytics.extend(
+        make_row(
+            days_ago=index % 10,
+            hour=8,
+            rating=4,
+            response_time_ms=1200,
+            category="noun",
+            parallel_mode_active=False,
+            term_id=501,
+            card_id=950 + index,
+        )
+        for index in range(10)
+    )
+
+    insight = _detect_cross_language_interference(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is None
+
+
+def test_cross_language_interference_detects_significant_parallel_drop() -> None:
+    analytics = [
+        make_row(
+            days_ago=index % 10,
+            hour=20,
+            rating=1,
+            response_time_ms=1200,
+            category="noun",
+            parallel_mode_active=True,
+            term_id=501,
+            card_id=900 + index,
+            term_text="protocol",
+            language="jp",
+        )
+        for index in range(20)
+    ]
+    analytics.extend(
+        make_row(
+            days_ago=index % 10,
+            hour=8,
+            rating=4,
+            response_time_ms=1200,
+            category="noun",
+            parallel_mode_active=False,
+            term_id=501,
+            card_id=950 + index,
+            term_text="protocol",
+            language="jp",
+        )
+        for index in range(20)
+    )
+
+    insight = _detect_cross_language_interference(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is not None
+    assert insight.type is PatternType.CROSS_LANGUAGE_INTERFERENCE
+    assert insight.icon == "languages"
+    assert "protocol" in insight.text
+
+
+def test_cross_language_interference_skips_when_delta_is_not_significant() -> None:
+    analytics = [
+        make_row(
+            days_ago=index % 10,
+            hour=20,
+            rating=3 if index < 17 else 2,
+            response_time_ms=1200,
+            category="noun",
+            parallel_mode_active=True,
+            term_id=501,
+            card_id=900 + index,
+        )
+        for index in range(20)
+    ]
+    analytics.extend(
+        make_row(
+            days_ago=index % 10,
+            hour=8,
+            rating=4 if index < 18 else 2,
+            response_time_ms=1200,
+            category="noun",
+            parallel_mode_active=False,
+            term_id=501,
+            card_id=950 + index,
+        )
+        for index in range(20)
+    )
+
+    insight = _detect_cross_language_interference(
+        user_id=7,
+        analytics=analytics,
+        confidence_score=0.8,
+    )
+
+    assert insight is None
 
 
 async def test_get_pending_insights_computes_once_and_hides_seen_items() -> None:

@@ -43,10 +43,18 @@ class MockScheduleRepository:
             ),
         )
 
-    async def get_queue_stats(self, user_id: int, now: datetime):
+    async def get_queue_stats(self, user_id: int, now: datetime, collection_id: int | None = None):
         pass
 
-    async def list_due_cards(self, user_id: int, now: datetime, mode, limit: int, offset: int):
+    async def list_due_cards(
+        self,
+        user_id: int,
+        now: datetime,
+        mode,
+        limit: int,
+        offset: int,
+        collection_id: int | None = None,
+    ):
         pass
 
     async def create_card(self, card):
@@ -87,6 +95,11 @@ class MockScheduleRepository:
 
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
         return 0
+
+    async def find_term_ids_without_cards(
+        self, user_id: int, collection_id: int, language: str
+    ) -> list[int]:
+        return []
 
 
 @pytest.mark.asyncio

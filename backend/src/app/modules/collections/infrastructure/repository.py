@@ -1,5 +1,5 @@
 import structlog
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -251,9 +251,11 @@ class SqlAlchemyCollectionTermRepository(CollectionTermRepository):
         user_id: int,
         page: int,
         page_size: int,
+        search: str | None = None,
+        mastery_status: str | None = None,
     ) -> tuple[list[CollectionTermEntry], int]:
         offset = (page - 1) * page_size
-        mastery_status = case(
+        mastery_expr = case(
             (SrsCardModel.id.is_(None), "new"),
             (
                 and_(
@@ -265,8 +267,8 @@ class SqlAlchemyCollectionTermRepository(CollectionTermRepository):
             else_="learning",
         ).label("mastery_status")
 
-        result = await self._session.execute(
-            select(VocabularyTermModel, CollectionTermModel.added_at, mastery_status)
+        base_query = (
+            select(VocabularyTermModel, CollectionTermModel.added_at, mastery_expr)
             .join(
                 VocabularyTermModel,
                 CollectionTermModel.term_id == VocabularyTermModel.id,
@@ -280,15 +282,74 @@ class SqlAlchemyCollectionTermRepository(CollectionTermRepository):
                 ),
             )
             .where(CollectionTermModel.collection_id == collection_id)
-            .order_by(CollectionTermModel.added_at.desc(), CollectionTermModel.id.desc())
+        )
+
+        if search is not None and search.strip():
+            base_query = base_query.where(VocabularyTermModel.term.ilike(f"%{search.strip()}%"))
+
+        count_query = (
+            select(func.count(CollectionTermModel.id))
+            .join(
+                VocabularyTermModel,
+                CollectionTermModel.term_id == VocabularyTermModel.id,
+            )
+            .outerjoin(
+                SrsCardModel,
+                and_(
+                    SrsCardModel.term_id == VocabularyTermModel.id,
+                    SrsCardModel.user_id == user_id,
+                    SrsCardModel.language == VocabularyTermModel.language,
+                ),
+            )
+            .where(CollectionTermModel.collection_id == collection_id)
+        )
+
+        if search is not None and search.strip():
+            count_query = count_query.where(VocabularyTermModel.term.ilike(f"%{search.strip()}%"))
+
+        if mastery_status is not None:
+            if mastery_status == "new":
+                base_query = base_query.where(SrsCardModel.id.is_(None))
+                count_query = count_query.where(SrsCardModel.id.is_(None))
+            elif mastery_status == "mastered":
+                base_query = base_query.where(
+                    and_(
+                        SrsCardModel.stability.is_not(None),
+                        SrsCardModel.stability >= MASTERY_STABILITY_THRESHOLD,
+                    )
+                )
+                count_query = count_query.where(
+                    and_(
+                        SrsCardModel.stability.is_not(None),
+                        SrsCardModel.stability >= MASTERY_STABILITY_THRESHOLD,
+                    )
+                )
+            elif mastery_status == "learning":
+                base_query = base_query.where(
+                    and_(
+                        SrsCardModel.id.is_not(None),
+                        or_(
+                            SrsCardModel.stability.is_(None),
+                            SrsCardModel.stability < MASTERY_STABILITY_THRESHOLD,
+                        ),
+                    )
+                )
+                count_query = count_query.where(
+                    and_(
+                        SrsCardModel.id.is_not(None),
+                        or_(
+                            SrsCardModel.stability.is_(None),
+                            SrsCardModel.stability < MASTERY_STABILITY_THRESHOLD,
+                        ),
+                    )
+                )
+
+        result = await self._session.execute(
+            base_query.order_by(CollectionTermModel.added_at.desc(), CollectionTermModel.id.desc())
             .offset(offset)
             .limit(page_size),
         )
-        count_result = await self._session.execute(
-            select(func.count(CollectionTermModel.id)).where(
-                CollectionTermModel.collection_id == collection_id,
-            ),
-        )
+        count_result = await self._session.execute(count_query)
 
         items = [
             CollectionTermEntry(

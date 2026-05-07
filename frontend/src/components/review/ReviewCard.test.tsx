@@ -21,7 +21,6 @@ const mockCard: SessionCard = {
     id: 42,
     term: "protocol",
     language: "en",
-    parent_id: null,
     cefr_level: "B2",
     jlpt_level: null,
     part_of_speech: "noun",
@@ -48,7 +47,6 @@ const mockCard: SessionCard = {
         validated_against_jmdict: false,
       },
     ],
-    created_at: "2026-04-01T00:00:00Z",
   },
 };
 

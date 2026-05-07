@@ -33,37 +33,7 @@ class InMemorySessionStatsRepository(SrsCardRepository):
     def set_due_count_for_date(self, count: int) -> None:
         self._due_count_for_date = count
 
-    async def get_session_reviews(
-        self, user_id: int, session_id: object
-    ) -> list[SessionReviewRow]:
-        return self._session_reviews
-
-    async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
-        return self._due_count_for_date
-
-    async def get_queue_stats(self, user_id: int, now: datetime) -> QueueStats:
-        return QueueStats(due_count=0, overdue_count=0, estimated_minutes=0)
-
-    async def list_due_cards(
-        self,
-        user_id: int,
-        now: datetime,
-        mode: QueueMode,
-        limit: int,
-        offset: int,
-    ) -> DueCardsPage:
-        return DueCardsPage(items=[], total_count=0, mode=mode, limit=limit, offset=offset)
-
     async def create_card(self, card: SrsCard) -> SrsCard:
-        if any(
-            existing.user_id == card.user_id
-            and existing.term_id == card.term_id
-            and existing.language == card.language
-            for existing in self._cards.values()
-        ):
-            msg = "Card already exists for this term and language"
-            raise DuplicateCardError(msg)
-
         card.id = self._next_card_id
         self._next_card_id += 1
         self._cards[card.id] = card
@@ -94,20 +64,49 @@ class InMemorySessionStatsRepository(SrsCardRepository):
         saved_review = await self.create_review(review)
         return updated_card, saved_review
 
-    async def rollback(self) -> None:
-        self.rollback_called = True
-
-    async def delete_review(self, review_id: int) -> None:
-        pass
-
     async def get_last_review(self, card_id: int, user_id: int) -> Review | None:
         return None
 
     async def get_last_review_for_update(self, card_id: int, user_id: int) -> Review | None:
         return None
 
+    async def delete_review(self, review_id: int) -> None:
+        pass
+
     async def update_card_with_delete_review(self, card: SrsCard, review_id: int) -> SrsCard:
         return card
+
+    async def rollback(self) -> None:
+        self.rollback_called = True
+
+    async def get_queue_stats(
+        self, user_id: int, now: datetime, collection_id: int | None = None
+    ) -> QueueStats:
+        return QueueStats(due_count=0, overdue_count=0, estimated_minutes=0)
+
+    async def list_due_cards(
+        self,
+        user_id: int,
+        now: datetime,
+        mode: QueueMode,
+        limit: int,
+        offset: int,
+        collection_id: int | None = None,
+    ) -> DueCardsPage:
+        return DueCardsPage(items=[], total_count=0, mode=mode, limit=limit, offset=offset)
+
+    async def get_session_reviews(
+        self, user_id: int, session_id: object
+    ) -> list[SessionReviewRow]:
+        return self._session_reviews
+
+    async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
+        return self._due_count_for_date
+
+    async def find_term_ids_without_cards(
+        self, user_id: int, collection_id: int, language: str
+    ) -> list[int]:
+        return []
 
     async def count_due_cards_by_buckets(
         self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
 import { CatchUpBanner, InsightCard, QueueHeader, ReviewCard, SessionSummary } from "@/components/review";
@@ -47,15 +48,23 @@ function createDiagnosticsSessionId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `session-${Date.now()}`;
 }
 
+function getSessionProgressKey(collectionId: number | null): string {
+  if (collectionId !== null) {
+    return `review_session_progress_collection_${collectionId}`;
+  }
+  return SESSION_PROGRESS_KEY;
+}
+
 function saveSessionProgress(
   cardIds: number[],
   currentIndex: number,
   sessionStartedAt: number | null,
   diagnosticsSessionId: string | null,
+  collectionId: number | null,
 ) {
   try {
     localStorage.setItem(
-      SESSION_PROGRESS_KEY,
+      getSessionProgressKey(collectionId),
       JSON.stringify({ cardIds, currentIndex, sessionStartedAt, diagnosticsSessionId }),
     );
   } catch {
@@ -63,9 +72,9 @@ function saveSessionProgress(
   }
 }
 
-function loadSessionProgress(): SavedSessionProgress | null {
+function loadSessionProgress(collectionId: number | null): SavedSessionProgress | null {
   try {
-    const raw = localStorage.getItem(SESSION_PROGRESS_KEY);
+    const raw = localStorage.getItem(getSessionProgressKey(collectionId));
     if (!raw) return null;
     return JSON.parse(raw) as SavedSessionProgress;
   } catch {
@@ -73,15 +82,39 @@ function loadSessionProgress(): SavedSessionProgress | null {
   }
 }
 
-function clearSessionProgress() {
+function clearSessionProgress(collectionId: number | null) {
   try {
-    localStorage.removeItem(SESSION_PROGRESS_KEY);
+    localStorage.removeItem(getSessionProgressKey(collectionId));
   } catch {
     // localStorage not available
   }
 }
 
 export default function ReviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <section className="mx-auto flex min-h-[60vh] w-full max-w-[720px] flex-col justify-center gap-4 px-4 py-6 sm:px-6 lg:px-0">
+          <Card>
+            <CardContent className="space-y-3 py-6">
+              <div className="h-6 w-48 animate-pulse rounded-full bg-muted" />
+              <div className="h-4 w-64 animate-pulse rounded-full bg-muted" />
+            </CardContent>
+          </Card>
+          <div className="h-80 animate-pulse rounded-[14px] bg-zinc-100" />
+        </section>
+      }
+    >
+      <ReviewPageContent />
+    </Suspense>
+  );
+}
+
+function ReviewPageContent() {
+  const searchParams = useSearchParams();
+  const collectionIdParam = searchParams.get("collection");
+  const collectionId = collectionIdParam !== null ? Number(collectionIdParam) : undefined;
+
   const queueMode = useReviewStore((s) => s.queueMode);
   const setQueueMode = useReviewStore((s) => s.setQueueMode);
   const currentCardIndex = useReviewStore((s) => s.currentCardIndex);
@@ -129,12 +162,13 @@ export default function ReviewPage() {
   const lastWriteRef = useRef(0);
   const [diagnosticsSessionId, setDiagnosticsSessionId] = useState<string | null>(null);
 
-  const queueStatsQuery = useQueueStats();
+  const queueStatsQuery = useQueueStats(collectionId);
   const dueCount = queueStatsQuery.data?.due_count ?? 0;
 
   const { sessionCards: fetchedCards, isLoading: cardsLoading } = useDueCards(
     queueMode,
     queueStatsQuery.isSuccess && dueCount > 0,
+    collectionId,
   );
   const pendingInsightsQuery = usePendingInsights(
     diagnosticsSessionId,
@@ -145,6 +179,8 @@ export default function ReviewPage() {
     showSessionSummary && diagnosticsSessionId !== null,
   );
 
+  const effectiveCollectionId = collectionId ?? null;
+
   useEffect(() => {
     setReviewInProgress(true);
     return () => {
@@ -152,10 +188,14 @@ export default function ReviewPage() {
     };
   }, [setReviewInProgress]);
 
+  const sessionInitRef = useRef(false);
+
   useEffect(() => {
     if (fetchedCards.length === 0) return;
+    if (sessionInitRef.current) return;
+    sessionInitRef.current = true;
 
-    const saved = loadSessionProgress();
+    const saved = loadSessionProgress(effectiveCollectionId);
     if (saved && saved.cardIds.length > 0) {
       const matchCount = Math.min(fetchedCards.length, saved.cardIds.length);
       let allMatch = true;
@@ -178,7 +218,7 @@ export default function ReviewPage() {
         if (saved.sessionStartedAt) {
           useReviewStore.setState({ sessionStartedAt: saved.sessionStartedAt });
         }
-        clearSessionProgress();
+        clearSessionProgress(effectiveCollectionId);
         return;
       }
     }
@@ -186,8 +226,8 @@ export default function ReviewPage() {
     const nextSessionId = createDiagnosticsSessionId();
     queueMicrotask(() => setDiagnosticsSessionId(nextSessionId));
     startSession(fetchedCards);
-    clearSessionProgress();
-  }, [fetchedCards, startSession]);
+    clearSessionProgress(effectiveCollectionId);
+  }, [fetchedCards, startSession, effectiveCollectionId]);
 
   useEffect(() => {
     if (!pendingInsightsQuery.isSuccess) return;
@@ -205,14 +245,15 @@ export default function ReviewPage() {
       state.currentCardIndex,
       state.sessionStartedAt,
       diagnosticsSessionId,
+      effectiveCollectionId,
     );
-  }, [diagnosticsSessionId]);
+  }, [diagnosticsSessionId, effectiveCollectionId]);
 
   const handleEndSession = useCallback(() => {
     if (sessionCards.length === 0) return;
     setReviewInProgress(false);
     endSession();
-    clearSessionProgress();
+    clearSessionProgress(effectiveCollectionId);
 
     if (undoToastIdRef.current !== null) {
       toast.dismissToast(undoToastIdRef.current);
@@ -222,7 +263,7 @@ export default function ReviewPage() {
       clearTimeout(undoTimerRef.current);
       undoTimerRef.current = null;
     }
-  }, [sessionCards.length, endSession, setReviewInProgress, toast]);
+  }, [sessionCards.length, endSession, setReviewInProgress, toast, effectiveCollectionId]);
 
   const handleUndo = useCallback(async () => {
     if (lastRatedCardId === null) return;
@@ -241,6 +282,7 @@ export default function ReviewPage() {
         useReviewStore.getState().previousCardIndex ?? 0,
         useReviewStore.getState().sessionStartedAt,
         diagnosticsSessionId,
+        effectiveCollectionId,
       );
 
       if (undoToastIdRef.current !== null) {
@@ -254,7 +296,7 @@ export default function ReviewPage() {
     } catch {
       toast.error("Unable to undo rating");
     }
-  }, [diagnosticsSessionId, lastRatedCardId, undoAvailableUntil, undoMutate, undoLastRating, toast]);
+  }, [diagnosticsSessionId, effectiveCollectionId, lastRatedCardId, undoAvailableUntil, undoMutate, undoLastRating, toast]);
 
   const handleDismissInsight = useCallback(() => {
     const insightToMark = useReviewStore.getState().currentInsight;
@@ -286,10 +328,10 @@ export default function ReviewPage() {
 
     const newSessionId = createDiagnosticsSessionId();
     setDiagnosticsSessionId(newSessionId);
-    clearSessionProgress();
+    clearSessionProgress(effectiveCollectionId);
     startSession(filteredCards);
     setReviewInProgress(true);
-  }, [sessionStatsQuery.data, sessionCards, startSession, setReviewInProgress]);
+  }, [sessionStatsQuery.data, sessionCards, startSession, setReviewInProgress, effectiveCollectionId]);
 
   const handleRate = useCallback(
     async (rating: RatingValue) => {
@@ -391,7 +433,7 @@ export default function ReviewPage() {
     ) {
       setReviewInProgress(false);
       endSession();
-      clearSessionProgress();
+      clearSessionProgress(effectiveCollectionId);
 
       if (undoToastIdRef.current !== null) {
         toast.dismissToast(undoToastIdRef.current);
@@ -410,6 +452,7 @@ export default function ReviewPage() {
     endSession,
     setReviewInProgress,
     toast,
+    effectiveCollectionId,
   ]);
 
   if (queueStatsQuery.isLoading) {
@@ -486,6 +529,8 @@ export default function ReviewPage() {
   }
 
   const currentCard = sessionCards[currentCardIndex];
+
+  const breadcrumbName = collectionId !== undefined ? `· Collection` : undefined;
 
   return (
     <section className="mx-auto flex w-full max-w-[720px] flex-col gap-4 px-4 py-6 sm:px-6 lg:px-0">

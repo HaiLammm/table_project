@@ -3,12 +3,15 @@ from math import ceil
 from uuid import UUID
 
 import structlog
-from sqlalchemy import case, func, select
+from sqlalchemy import case, exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.app.modules.collections.infrastructure.models import CollectionTermModel
 from src.app.modules.srs.domain.entities import (
     DueCardsPage,
+    DueCardWithTerm,
+    EmbeddedTerm,
     QueueStats,
     Review,
     ScheduleBucket,
@@ -24,6 +27,10 @@ from src.app.modules.srs.domain.exceptions import (
 from src.app.modules.srs.domain.interfaces import SrsCardRepository
 from src.app.modules.srs.domain.value_objects import QueueMode, Rating
 from src.app.modules.srs.infrastructure.models import SrsCardModel, SrsReviewModel
+from src.app.modules.vocabulary.infrastructure.models import (
+    VocabularyDefinitionModel,
+    VocabularyTermModel,
+)
 
 logger = structlog.get_logger().bind(module="srs_repository")
 
@@ -55,6 +62,8 @@ def _review_to_domain(model: SrsReviewModel) -> Review:
         rating=Rating.from_score(model.rating),
         reviewed_at=model.reviewed_at,
         response_time_ms=model.response_time_ms,
+        session_length_s=model.session_length_s,
+        parallel_mode_active=model.parallel_mode_active,
         session_id=model.session_id,
         previous_fsrs_state=model.previous_fsrs_state,
         previous_stability=model.previous_stability,
@@ -166,6 +175,8 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             rating=review.rating.to_score(),
             reviewed_at=review.reviewed_at,
             response_time_ms=review.response_time_ms,
+            session_length_s=review.session_length_s,
+            parallel_mode_active=review.parallel_mode_active,
             session_id=review.session_id,
             previous_fsrs_state=review.previous_fsrs_state,
             previous_stability=review.previous_stability,
@@ -216,6 +227,8 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             rating=review.rating.to_score(),
             reviewed_at=review.reviewed_at,
             response_time_ms=review.response_time_ms,
+            session_length_s=review.session_length_s,
+            parallel_mode_active=review.parallel_mode_active,
             session_id=review.session_id,
             previous_fsrs_state=review.previous_fsrs_state,
             previous_stability=review.previous_stability,
@@ -338,17 +351,28 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
     async def rollback(self) -> None:
         await self._session.rollback()
 
-    async def get_queue_stats(self, user_id: int, now: datetime) -> QueueStats:
+    async def get_queue_stats(
+        self, user_id: int, now: datetime, collection_id: int | None = None
+    ) -> QueueStats:
         overdue_cutoff = now - timedelta(days=1)
-        counts_result = await self._session.execute(
-            select(
-                func.count(SrsCardModel.id),
-                func.count(SrsCardModel.id).filter(SrsCardModel.due_at < overdue_cutoff),
-            ).where(
-                SrsCardModel.user_id == user_id,
-                SrsCardModel.due_at <= now,
-            ),
-        )
+        base_where = [
+            SrsCardModel.user_id == user_id,
+            SrsCardModel.due_at <= now,
+        ]
+        if collection_id is not None:
+            base_where.append(CollectionTermModel.collection_id == collection_id)
+
+        count_stmt = select(
+            func.count(SrsCardModel.id),
+            func.count(SrsCardModel.id).filter(SrsCardModel.due_at < overdue_cutoff),
+        ).where(*base_where)
+        if collection_id is not None:
+            count_stmt = count_stmt.join(
+                CollectionTermModel,
+                SrsCardModel.term_id == CollectionTermModel.term_id,
+            )
+
+        counts_result = await self._session.execute(count_stmt)
         due_count, overdue_count = counts_result.one()
 
         avg_result = await self._session.execute(
@@ -377,26 +401,85 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
         mode: QueueMode,
         limit: int,
         offset: int,
+        collection_id: int | None = None,
     ) -> DueCardsPage:
         queue_bucket = case((SrsCardModel.reps == 0, 1), else_=0)
-        total_result = await self._session.execute(
-            select(func.count(SrsCardModel.id)).where(
-                SrsCardModel.user_id == user_id,
-                SrsCardModel.due_at <= now,
-            ),
-        )
-        total_count = int(total_result.scalar_one() or 0)
+        total_window = func.count(SrsCardModel.id).over().label("_total")
+        base_where = [
+            SrsCardModel.user_id == user_id,
+            SrsCardModel.due_at <= now,
+        ]
+        if collection_id is not None:
+            base_where.append(CollectionTermModel.collection_id == collection_id)
 
-        result = await self._session.execute(
-            select(SrsCardModel)
-            .where(
-                SrsCardModel.user_id == user_id,
-                SrsCardModel.due_at <= now,
+        stmt = (
+            select(
+                SrsCardModel,
+                total_window,
+                VocabularyTermModel.id.label("vt_id"),
+                VocabularyTermModel.term.label("vt_term"),
+                VocabularyTermModel.language.label("vt_language"),
+                VocabularyTermModel.cefr_level.label("vt_cefr_level"),
+                VocabularyTermModel.jlpt_level.label("vt_jlpt_level"),
+                VocabularyTermModel.part_of_speech.label("vt_part_of_speech"),
             )
-            .order_by(queue_bucket.asc(), SrsCardModel.due_at.asc(), SrsCardModel.id.asc())
-            .offset(offset)
-            .limit(limit),
+            .outerjoin(VocabularyTermModel, SrsCardModel.term_id == VocabularyTermModel.id)
+            .where(*base_where)
         )
+        if collection_id is not None:
+            stmt = stmt.join(
+                CollectionTermModel,
+                SrsCardModel.term_id == CollectionTermModel.term_id,
+            )
+
+        stmt = (
+            stmt.order_by(queue_bucket.asc(), SrsCardModel.due_at.asc(), SrsCardModel.id.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+
+        result = await self._session.execute(stmt)
+        rows = result.all()
+
+        total_count = int(rows[0]._total) if rows else 0
+
+        term_ids = [r.vt_id for r in rows if r.vt_id is not None]
+        definitions_map: dict[int, list[dict[str, object]]] = {}
+        if term_ids:
+            def_result = await self._session.execute(
+                select(VocabularyDefinitionModel).where(
+                    VocabularyDefinitionModel.term_id.in_(term_ids)
+                )
+            )
+            for d in def_result.scalars().all():
+                definitions_map.setdefault(d.term_id, []).append(
+                    {
+                        "id": d.id,
+                        "language": d.language,
+                        "definition": d.definition,
+                        "ipa": d.ipa,
+                        "examples": d.examples,
+                        "source": d.source,
+                        "validated_against_jmdict": d.validated_against_jmdict,
+                    }
+                )
+
+        items: list[DueCardWithTerm] = []
+        for row in rows:
+            card_model = row[0]
+            card = _to_domain(card_model)
+            embedded_term = None
+            if row.vt_id is not None:
+                embedded_term = EmbeddedTerm(
+                    id=row.vt_id,
+                    term=row.vt_term,
+                    language=row.vt_language,
+                    cefr_level=row.vt_cefr_level,
+                    jlpt_level=row.vt_jlpt_level,
+                    part_of_speech=row.vt_part_of_speech,
+                    definitions=definitions_map.get(row.vt_id, []),
+                )
+            items.append(DueCardWithTerm(card=card, term=embedded_term))
 
         logger.info(
             "srs_due_cards_loaded",
@@ -406,7 +489,7 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             offset=offset,
         )
         return DueCardsPage(
-            items=[_to_domain(model) for model in result.scalars().all()],
+            items=items,
             total_count=total_count,
             mode=mode,
             limit=limit,
@@ -440,6 +523,26 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             for row in rows
         ]
 
+    async def find_term_ids_without_cards(
+        self, user_id: int, collection_id: int, language: str
+    ) -> list[int]:
+        result = await self._session.execute(
+            select(CollectionTermModel.term_id)
+            .where(
+                CollectionTermModel.collection_id == collection_id,
+            )
+            .where(
+                ~exists(
+                    select(SrsCardModel.id).where(
+                        SrsCardModel.term_id == CollectionTermModel.term_id,
+                        SrsCardModel.user_id == user_id,
+                        SrsCardModel.language == language,
+                    )
+                )
+            )
+        )
+        return [row[0] for row in result.all()]
+
     async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
         result = await self._session.execute(
             select(func.count(SrsCardModel.id)).where(
@@ -452,31 +555,23 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
     async def count_due_cards_by_buckets(
         self, user_id: int, today_end: datetime, tomorrow_end: datetime, week_end: datetime
     ) -> UpcomingSchedule:
-        today_result = await self._session.execute(
-            select(func.count(SrsCardModel.id)).where(
+        result = await self._session.execute(
+            select(
+                func.count(SrsCardModel.id).filter(SrsCardModel.due_at <= today_end),
+                func.count(SrsCardModel.id).filter(
+                    SrsCardModel.due_at > today_end,
+                    SrsCardModel.due_at <= tomorrow_end,
+                ),
+                func.count(SrsCardModel.id).filter(
+                    SrsCardModel.due_at > tomorrow_end,
+                    SrsCardModel.due_at <= week_end,
+                ),
+            ).where(
                 SrsCardModel.user_id == user_id,
-                SrsCardModel.due_at <= today_end,
-            )
-        )
-        today_count = int(today_result.scalar_one() or 0)
-
-        tomorrow_result = await self._session.execute(
-            select(func.count(SrsCardModel.id)).where(
-                SrsCardModel.user_id == user_id,
-                SrsCardModel.due_at > today_end,
-                SrsCardModel.due_at <= tomorrow_end,
-            )
-        )
-        tomorrow_count = int(tomorrow_result.scalar_one() or 0)
-
-        this_week_result = await self._session.execute(
-            select(func.count(SrsCardModel.id)).where(
-                SrsCardModel.user_id == user_id,
-                SrsCardModel.due_at > tomorrow_end,
                 SrsCardModel.due_at <= week_end,
             )
         )
-        this_week_count = int(this_week_result.scalar_one() or 0)
+        today_count, tomorrow_count, this_week_count = result.one()
 
         avg_result = await self._session.execute(
             select(func.avg(SrsReviewModel.response_time_ms)).where(
@@ -496,12 +591,13 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
         logger.info("srs_schedule_buckets_loaded", user_id=user_id)
         return UpcomingSchedule(
             today=ScheduleBucket(
-                due_count=today_count, estimated_minutes=calc_minutes(today_count)
+                due_count=int(today_count), estimated_minutes=calc_minutes(int(today_count))
             ),
             tomorrow=ScheduleBucket(
-                due_count=tomorrow_count, estimated_minutes=calc_minutes(tomorrow_count)
+                due_count=int(tomorrow_count), estimated_minutes=calc_minutes(int(tomorrow_count))
             ),
             this_week=ScheduleBucket(
-                due_count=this_week_count, estimated_minutes=calc_minutes(this_week_count)
+                due_count=int(this_week_count),
+                estimated_minutes=calc_minutes(int(this_week_count)),
             ),
         )

@@ -1,6 +1,22 @@
-import type { VocabularyTerm } from "@/types/vocabulary";
-
 export type QueueMode = "full" | "catchup";
+
+export interface EmbeddedTerm {
+  id: number;
+  term: string;
+  language: string;
+  cefr_level: string | null;
+  jlpt_level: string | null;
+  part_of_speech: string | null;
+  definitions: Array<{
+    id: number;
+    language: string;
+    definition: string;
+    ipa: string | null;
+    examples: string[];
+    source: string;
+    validated_against_jmdict: boolean;
+  }>;
+}
 
 export interface SrsCard {
   id: number;
@@ -12,6 +28,7 @@ export interface SrsCard {
   difficulty: number;
   reps: number;
   lapses: number;
+  term?: EmbeddedTerm | null;
 }
 
 export interface DueCardsResponse {
@@ -47,7 +64,7 @@ export interface ReviewResponse {
 }
 
 export interface SessionCard extends SrsCard {
-  term: VocabularyTerm | null
+  term: EmbeddedTerm | null;
 }
 
 export interface SessionStatsResponse {
@@ -68,4 +85,9 @@ export interface UpcomingScheduleResponse {
   today: ScheduleBucketResponse
   tomorrow: ScheduleBucketResponse
   this_week: ScheduleBucketResponse
+}
+
+export interface CreateCardsForCollectionResponse {
+  created_count: number
+  skipped_count: number
 }

@@ -57,5 +57,7 @@ class CollectionTermRepository(ABC):
         user_id: int,
         page: int,
         page_size: int,
+        search: str | None = None,
+        mastery_status: str | None = None,
     ) -> tuple[list[CollectionTermEntry], int]:
         raise NotImplementedError

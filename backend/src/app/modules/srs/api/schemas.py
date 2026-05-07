@@ -14,6 +14,17 @@ class QueueStatsResponse(BaseModel):
     estimated_minutes: int
     has_overdue: bool
     overdue_count: int
+    retention_rate: float | None = None
+
+
+class CreateCardsForCollectionRequest(BaseModel):
+    collection_id: int
+    language: str = "en"
+
+
+class CreateCardsForCollectionResponse(BaseModel):
+    created_count: int
+    skipped_count: int
 
 
 class SrsCardResponse(BaseModel):
@@ -42,6 +53,8 @@ class CreateSrsCardResponse(SrsCardResponse):
 class ReviewCardRequest(BaseModel):
     rating: int = Field(ge=1, le=4)
     response_time_ms: int | None = Field(default=None, ge=0)
+    session_length_s: int | None = Field(default=None, ge=0)
+    parallel_mode_active: bool = False
     session_id: UUID | None = None
 
 
@@ -50,8 +63,20 @@ class ReviewCardResponse(SrsCardResponse):
     interval_display: str
 
 
+class EmbeddedTermResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    term: str
+    language: str
+    cefr_level: str | None = None
+    jlpt_level: str | None = None
+    part_of_speech: str | None = None
+    definitions: list[dict[str, object]] = []
+
+
 class DueCardResponse(SrsCardResponse):
-    pass
+    term: EmbeddedTermResponse | None = None
 
 
 class DueCardsResponse(BaseModel):
