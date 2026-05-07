@@ -30,6 +30,11 @@ class Review:
     id: int | None = None
     response_time_ms: int | None = None
     session_id: UUID | None = None
+    previous_fsrs_state: dict[str, object] | None = None
+    previous_stability: float | None = None
+    previous_difficulty: float | None = None
+    previous_reps: int | None = None
+    previous_lapses: int | None = None
 
 
 @dataclass(slots=True, kw_only=True)
@@ -49,6 +54,24 @@ class QueueStats:
     @property
     def has_overdue(self) -> bool:
         return self.overdue_count > 0
+
+
+@dataclass(slots=True, kw_only=True)
+class SessionStats:
+    cards_reviewed: int
+    cards_graduated: int
+    cards_lapsed: int
+    lapsed_card_ids: list[int]
+    tomorrow_due_count: int
+    tomorrow_estimated_minutes: int
+
+
+@dataclass(slots=True, kw_only=True)
+class SessionReviewRow:
+    card_id: int
+    rating: int
+    previous_stability: float | None
+    current_card_stability: float | None
 
 
 @dataclass(slots=True, kw_only=True)

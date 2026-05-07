@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 
 from src.app.modules.vocabulary.application.services import VocabularyService
 from src.app.modules.vocabulary.domain.entities import VocabularyDefinition, VocabularyTerm

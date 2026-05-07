@@ -4,6 +4,8 @@ import { Menu, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { useReviewStore } from "@/stores/review-store";
+import { useUIStore } from "@/stores/ui-store";
 
 type TopbarProps = {
   mobileOpen: boolean;
@@ -34,6 +36,14 @@ function getCurrentPageLabel(pathname: string) {
 export function Topbar({ mobileOpen, onMenuToggle, onSearchOpen }: TopbarProps) {
   const pathname = usePathname();
   const currentPage = getCurrentPageLabel(pathname);
+  const reviewInProgress = useUIStore((s) => s.reviewInProgress);
+  const currentCardIndex = useReviewStore((s) => s.currentCardIndex);
+  const sessionCardsLength = useReviewStore((s) => s.sessionCards.length);
+
+  let breadcrumbLabel = currentPage;
+  if (pathname.startsWith("/review") && reviewInProgress && sessionCardsLength > 0) {
+    breadcrumbLabel = `Reviewing · ${currentCardIndex + 1} / ${sessionCardsLength}`;
+  }
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center border-b border-[var(--chrome-border)] bg-[var(--chrome-bg)] px-4 sm:px-6 lg:px-8">
@@ -54,7 +64,7 @@ export function Topbar({ mobileOpen, onMenuToggle, onSearchOpen }: TopbarProps) 
           <span className="text-zinc-500">TableProject</span>
           <span className="px-2 text-zinc-600">/</span>
           <span className="inline-block max-w-full truncate align-bottom font-medium text-zinc-200">
-            {currentPage}
+            {breadcrumbLabel}
           </span>
         </div>
       </div>

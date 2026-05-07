@@ -1,26 +1,62 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useReviewStore } from "@/stores/review-store";
 import type { RatingValue } from "@/types/srs";
 
-export function useReviewKeyboard(onRate?: (rating: RatingValue) => void) {
+export function useReviewKeyboard(
+  onRate?: (rating: RatingValue) => void,
+  onEndSession?: () => void,
+  onUndo?: () => void,
+  onDismissInsight?: () => void,
+) {
   const isRevealed = useReviewStore((s) => s.isRevealed);
+  const isShowingInsight = useReviewStore((s) => s.isShowingInsight);
   const isRatingInProgress = useReviewStore((s) => s.isRatingInProgress);
   const revealCard = useReviewStore((s) => s.revealCard);
   const toggleJpDefinition = useReviewStore((s) => s.toggleJpDefinition);
   const sessionCards = useReviewStore((s) => s.sessionCards);
+  const undoAvailableUntil = useReviewStore((s) => s.undoAvailableUntil);
 
-  const onRateRef = useRef(onRate);
-  onRateRef.current = onRate;
+  const handleRate = useEffectEvent((rating: RatingValue) => {
+    onRate?.(rating);
+  });
+  const handleEndSession = useEffectEvent(() => {
+    onEndSession?.();
+  });
+  const handleUndo = useEffectEvent(() => {
+    onUndo?.();
+  });
+  const handleDismissInsight = useEffectEvent(() => {
+    onDismissInsight?.();
+  });
 
   useEffect(() => {
     if (sessionCards.length === 0) return;
 
-    let mounted = true;
-
     function handleKeyDown(e: KeyboardEvent) {
-      if (!mounted) return;
+      if (e.code === "Escape") {
+        e.preventDefault();
+        handleEndSession();
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") {
+        if (isShowingInsight) return;
+        if (undoAvailableUntil !== null && Date.now() < undoAvailableUntil && onUndo) {
+          e.preventDefault();
+          handleUndo();
+        }
+        return;
+      }
+
+      if (isShowingInsight) {
+        if (e.code === "Space") {
+          e.preventDefault();
+          handleDismissInsight();
+        }
+        return;
+      }
 
       if (e.code === "Space" && !isRevealed) {
         e.preventDefault();
@@ -34,34 +70,41 @@ export function useReviewKeyboard(onRate?: (rating: RatingValue) => void) {
         return;
       }
 
-      if (isRevealed && !isRatingInProgress && onRateRef.current) {
+      if (isRevealed && !isRatingInProgress && onRate) {
         if (e.code === "Digit1") {
           e.preventDefault();
-          onRateRef.current(1);
+          handleRate(1);
           return;
         }
         if (e.code === "Digit2") {
           e.preventDefault();
-          onRateRef.current(2);
+          handleRate(2);
           return;
         }
         if (e.code === "Digit3") {
           e.preventDefault();
-          onRateRef.current(3);
+          handleRate(3);
           return;
         }
         if (e.code === "Digit4") {
           e.preventDefault();
-          onRateRef.current(4);
+          handleRate(4);
           return;
         }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      mounted = false;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [sessionCards.length, isRevealed, isRatingInProgress, revealCard, toggleJpDefinition]);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    sessionCards.length,
+    isRevealed,
+    isShowingInsight,
+    isRatingInProgress,
+    onRate,
+    onUndo,
+    undoAvailableUntil,
+    revealCard,
+    toggleJpDefinition,
+  ]);
 }

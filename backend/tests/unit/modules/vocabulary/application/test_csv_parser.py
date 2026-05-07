@@ -1,4 +1,3 @@
-import pytest
 
 from src.app.modules.vocabulary.application.csv_parser import (
     _detect_encoding_and_delimiter,

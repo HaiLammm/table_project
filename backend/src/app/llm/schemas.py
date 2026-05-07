@@ -12,6 +12,7 @@ class EnrichmentResult(BaseModel):
     related_terms: list[str] = Field(default_factory=list)
     source: str = "llm"
     validated_against_jmdict: bool = False
+    candidate_id: str | None = None
 
 
 class SingleEnrichmentRequest(BaseModel):

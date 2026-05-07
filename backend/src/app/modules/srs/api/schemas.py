@@ -60,3 +60,21 @@ class DueCardsResponse(BaseModel):
     limit: int
     offset: int
     mode: QueueMode
+
+
+class UndoReviewResponse(SrsCardResponse):
+    next_due_at: datetime
+    interval_display: str
+    stability: float | None = None
+    difficulty: float | None = None
+    reps: int
+    lapses: int
+
+
+class SessionStatsResponse(BaseModel):
+    cards_reviewed: int
+    cards_graduated: int
+    cards_lapsed: int
+    lapsed_card_ids: list[int]
+    tomorrow_due_count: int
+    tomorrow_estimated_minutes: int

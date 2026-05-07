@@ -1,15 +1,26 @@
 from datetime import datetime, timedelta
 from math import ceil
+from uuid import UUID
 
 import structlog
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.app.modules.srs.domain.entities import DueCardsPage, QueueStats, Review, SrsCard
-from src.app.modules.srs.domain.exceptions import CardNotFoundError, DuplicateCardError
+from src.app.modules.srs.domain.entities import (
+    DueCardsPage,
+    QueueStats,
+    Review,
+    SessionReviewRow,
+    SrsCard,
+)
+from src.app.modules.srs.domain.exceptions import (
+    CardNotFoundError,
+    DuplicateCardError,
+    NoReviewToUndoError,
+)
 from src.app.modules.srs.domain.interfaces import SrsCardRepository
-from src.app.modules.srs.domain.value_objects import QueueMode
+from src.app.modules.srs.domain.value_objects import QueueMode, Rating
 from src.app.modules.srs.infrastructure.models import SrsCardModel, SrsReviewModel
 
 logger = structlog.get_logger().bind(module="srs_repository")
@@ -31,6 +42,23 @@ def _to_domain(model: SrsCardModel) -> SrsCard:
         lapses=model.lapses,
         created_at=model.created_at,
         updated_at=model.updated_at,
+    )
+
+
+def _review_to_domain(model: SrsReviewModel) -> Review:
+    return Review(
+        id=model.id,
+        card_id=model.card_id,
+        user_id=model.user_id,
+        rating=Rating.from_score(model.rating),
+        reviewed_at=model.reviewed_at,
+        response_time_ms=model.response_time_ms,
+        session_id=model.session_id,
+        previous_fsrs_state=model.previous_fsrs_state,
+        previous_stability=model.previous_stability,
+        previous_difficulty=model.previous_difficulty,
+        previous_reps=model.previous_reps,
+        previous_lapses=model.previous_lapses,
     )
 
 
@@ -137,6 +165,11 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             reviewed_at=review.reviewed_at,
             response_time_ms=review.response_time_ms,
             session_id=review.session_id,
+            previous_fsrs_state=review.previous_fsrs_state,
+            previous_stability=review.previous_stability,
+            previous_difficulty=review.previous_difficulty,
+            previous_reps=review.previous_reps,
+            previous_lapses=review.previous_lapses,
         )
         self._session.add(model)
         await self._session.commit()
@@ -148,15 +181,7 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             card_id=model.card_id,
             rating=model.rating,
         )
-        return Review(
-            id=model.id,
-            card_id=model.card_id,
-            user_id=model.user_id,
-            rating=review.rating,
-            reviewed_at=model.reviewed_at,
-            response_time_ms=model.response_time_ms,
-            session_id=model.session_id,
-        )
+        return _review_to_domain(model)
 
     async def save_review_result(self, card: SrsCard, review: Review) -> tuple[SrsCard, Review]:
         if card.id is None:
@@ -190,6 +215,11 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             reviewed_at=review.reviewed_at,
             response_time_ms=review.response_time_ms,
             session_id=review.session_id,
+            previous_fsrs_state=review.previous_fsrs_state,
+            previous_stability=review.previous_stability,
+            previous_difficulty=review.previous_difficulty,
+            previous_reps=review.previous_reps,
+            previous_lapses=review.previous_lapses,
         )
         self._session.add(review_model)
         await self._session.commit()
@@ -202,15 +232,106 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             card_id=model.id,
             rating=review_model.rating,
         )
-        return _to_domain(model), Review(
-            id=review_model.id,
-            card_id=review_model.card_id,
-            user_id=review_model.user_id,
-            rating=review.rating,
-            reviewed_at=review_model.reviewed_at,
-            response_time_ms=review_model.response_time_ms,
-            session_id=review_model.session_id,
+        return _to_domain(model), _review_to_domain(review_model)
+
+    async def get_last_review(self, card_id: int, user_id: int) -> Review | None:
+        result = await self._session.execute(
+            select(SrsReviewModel)
+            .where(
+                SrsReviewModel.card_id == card_id,
+                SrsReviewModel.user_id == user_id,
+            )
+            .order_by(SrsReviewModel.reviewed_at.desc())
+            .limit(1),
         )
+        model = result.scalar_one_or_none()
+        if model is None:
+            return None
+
+        return _review_to_domain(model)
+
+    async def get_last_review_for_update(self, card_id: int, user_id: int) -> Review | None:
+        result = await self._session.execute(
+            select(SrsReviewModel)
+            .where(
+                SrsReviewModel.card_id == card_id,
+                SrsReviewModel.user_id == user_id,
+            )
+            .order_by(SrsReviewModel.reviewed_at.desc())
+            .limit(1)
+            .with_for_update(),
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            return None
+
+        return _review_to_domain(model)
+
+    async def delete_review(self, review_id: int) -> None:
+        result = await self._session.execute(
+            select(SrsReviewModel).where(SrsReviewModel.id == review_id),
+        )
+        model = result.scalar_one_or_none()
+        if model is None:
+            msg = "Review not found"
+            raise NoReviewToUndoError(msg)
+
+        await self._session.delete(model)
+
+        logger.info(
+            "srs_review_deleted",
+            review_id=review_id,
+        )
+
+    async def update_card_with_delete_review(self, card: SrsCard, review_id: int) -> SrsCard:
+        if card.id is None:
+            msg = "Card id is required for updates"
+            raise CardNotFoundError(msg)
+
+        result = await self._session.execute(
+            select(SrsCardModel)
+            .where(
+                SrsCardModel.id == card.id,
+                SrsCardModel.user_id == card.user_id,
+            )
+            .with_for_update(),
+        )
+        card_model = result.scalar_one_or_none()
+        if card_model is None:
+            msg = "Card not found"
+            raise CardNotFoundError(msg)
+
+        card_model.term_id = card.term_id
+        card_model.language = card.language
+        card_model.due_at = card.due_at
+        card_model.fsrs_state = card.fsrs_state
+        card_model.stability = card.stability
+        card_model.difficulty = card.difficulty
+        card_model.reps = card.reps
+        card_model.lapses = card.lapses
+
+        review_result = await self._session.execute(
+            select(SrsReviewModel).where(
+                SrsReviewModel.id == review_id,
+                SrsReviewModel.card_id == card.id,
+                SrsReviewModel.user_id == card.user_id,
+            ),
+        )
+        review_model = review_result.scalar_one_or_none()
+        if review_model is None:
+            msg = "Review not found for this card"
+            raise NoReviewToUndoError(msg)
+        await self._session.delete(review_model)
+
+        await self._session.commit()
+        await self._session.refresh(card_model)
+
+        logger.info(
+            "srs_card_updated_with_review_delete",
+            user_id=card_model.user_id,
+            card_id=card_model.id,
+        )
+        return _to_domain(card_model)
 
     async def rollback(self) -> None:
         await self._session.rollback()
@@ -289,3 +410,39 @@ class SqlAlchemySrsCardRepository(SrsCardRepository):
             limit=limit,
             offset=offset,
         )
+
+    async def get_session_reviews(self, user_id: int, session_id: UUID) -> list[SessionReviewRow]:
+        stmt = (
+            select(
+                SrsReviewModel.card_id,
+                SrsReviewModel.rating,
+                SrsReviewModel.previous_stability,
+                SrsCardModel.stability.label("current_stability"),
+            )
+            .join(SrsCardModel, SrsReviewModel.card_id == SrsCardModel.id)
+            .where(
+                SrsReviewModel.session_id == session_id,
+                SrsReviewModel.user_id == user_id,
+            )
+            .order_by(SrsReviewModel.reviewed_at.asc())
+        )
+        result = await self._session.execute(stmt)
+        rows = result.all()
+        return [
+            SessionReviewRow(
+                card_id=row.card_id,
+                rating=row.rating,
+                previous_stability=row.previous_stability,
+                current_card_stability=row.current_stability,
+            )
+            for row in rows
+        ]
+
+    async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
+        result = await self._session.execute(
+            select(func.count(SrsCardModel.id)).where(
+                SrsCardModel.user_id == user_id,
+                SrsCardModel.due_at <= date_end,
+            )
+        )
+        return int(result.scalar_one() or 0)

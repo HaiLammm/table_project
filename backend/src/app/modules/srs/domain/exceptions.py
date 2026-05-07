@@ -21,3 +21,8 @@ class CardNotDueError(SrsDomainError):
 class DuplicateCardError(SrsDomainError):
     status_code = 409
     code = "duplicate_card"
+
+
+class NoReviewToUndoError(SrsDomainError):
+    status_code = 404
+    code = "no_review_to_undo"

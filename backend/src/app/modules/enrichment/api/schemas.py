@@ -11,6 +11,8 @@ class VocabularyRequestCreate(BaseModel):
 
 
 class EnrichedTermResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     term_id: int | None = None
     candidate_id: str | None = None
     term: str

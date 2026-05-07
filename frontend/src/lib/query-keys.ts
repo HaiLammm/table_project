@@ -12,6 +12,13 @@ export const srsKeys = {
   queue: (mode: "full" | "catchup") => [...srsKeys.all, "queue", mode] as const,
   card: (id: number) => [...srsKeys.all, "card", id] as const,
   dueCards: () => [...srsKeys.all, "due-cards"] as const,
+  sessionStats: (sessionId: string) => [...srsKeys.all, "session-stats", sessionId] as const,
+};
+
+export const diagnosticsKeys = {
+  all: ["diagnostics"] as const,
+  pendingInsights: (sessionId: string) =>
+    [...diagnosticsKeys.all, "pending-insights", sessionId] as const,
 };
 
 export const vocabularyKeys = {

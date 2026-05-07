@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -16,6 +17,8 @@ from src.app.modules.srs.api.schemas import (
     QueueStatsResponse,
     ReviewCardRequest,
     ReviewCardResponse,
+    SessionStatsResponse,
+    UndoReviewResponse,
 )
 from src.app.modules.srs.application.services import QueueStatsService, ReviewSchedulingService
 from src.app.modules.srs.domain.value_objects import QueueMode, Rating
@@ -110,6 +113,19 @@ async def read_due_cards(
     )
 
 
+@router.get("/session-stats", response_model=SessionStatsResponse, tags=["srs_cards"])
+async def read_session_stats(
+    session_id: UUID,
+    current_user: CurrentUserDependency,
+    review_scheduling_service: ReviewSchedulingServiceDependency,
+) -> SessionStatsResponse:
+    stats = await review_scheduling_service.get_session_stats(
+        user_id=_require_user_id(current_user),
+        session_id=session_id,
+    )
+    return SessionStatsResponse.model_validate(stats)
+
+
 @router.post("/{card_id}/review", response_model=ReviewCardResponse, tags=["srs_cards"])
 async def review_srs_card(
     card_id: int,
@@ -129,4 +145,26 @@ async def review_srs_card(
         **card_payload,
         next_due_at=review_result.next_due_at,
         interval_display=review_result.interval_display,
+    )
+
+
+@router.post("/{card_id}/review/undo", response_model=UndoReviewResponse, tags=["srs_cards"])
+async def undo_srs_review(
+    card_id: int,
+    current_user: CurrentUserDependency,
+    review_scheduling_service: ReviewSchedulingServiceDependency,
+) -> UndoReviewResponse:
+    review_result = await review_scheduling_service.undo_last_review(
+        card_id=card_id,
+        user_id=_require_user_id(current_user),
+    )
+    card_payload = CreateSrsCardResponse.model_validate(review_result.card).model_dump()
+    return UndoReviewResponse(
+        **card_payload,
+        next_due_at=review_result.next_due_at,
+        interval_display=review_result.interval_display,
+        stability=review_result.card.stability,
+        difficulty=review_result.card.difficulty,
+        reps=review_result.card.reps,
+        lapses=review_result.card.lapses,
     )

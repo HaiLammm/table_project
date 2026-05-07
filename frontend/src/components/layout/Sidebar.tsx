@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useUIStore } from "@/stores/ui-store";
 
 type SidebarProps = {
   mobileOpen: boolean;
@@ -63,14 +64,22 @@ function isActivePath(pathname: string, href: string) {
 
 export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
   const pathname = usePathname();
+  const reviewInProgress = useUIStore((s) => s.reviewInProgress);
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[var(--sidebar-collapsed-width)] shrink-0 border-r border-[var(--chrome-border)] bg-[var(--chrome-bg)] text-[var(--chrome-text)] sm:flex lg:w-[var(--sidebar-width)]">
+      <aside
+        className={cn(
+          "sticky top-0 hidden h-screen shrink-0 border-r border-[var(--chrome-border)] bg-[var(--chrome-bg)] text-[var(--chrome-text)] transition-[width] duration-200 sm:flex",
+          reviewInProgress
+            ? "w-[var(--sidebar-collapsed-width)] lg:w-[56px]"
+            : "w-[var(--sidebar-collapsed-width)] lg:w-[var(--sidebar-width)]",
+        )}
+      >
         <div className="flex w-full flex-col">
           <div className="flex h-14 items-center border-b border-[var(--chrome-border)] px-4 text-sm font-semibold tracking-tight text-zinc-50 sm:justify-center lg:justify-start">
-            <span className="hidden lg:inline">TableProject</span>
-            <span className="lg:hidden">TP</span>
+            <span className={cn("hidden lg:inline", reviewInProgress && "lg:hidden")}>TableProject</span>
+            <span className={cn("lg:hidden", reviewInProgress && "lg:inline")}>TP</span>
           </div>
 
           <nav aria-label="Main navigation" className="flex flex-1 flex-col gap-1 p-2">
@@ -92,9 +101,16 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
                       )}
                     >
                       <Icon className="size-5 shrink-0" />
-                      <span className="ml-3 hidden lg:inline">{item.label}</span>
+                      <span className={cn("ml-3 hidden lg:inline", reviewInProgress && "lg:hidden")}>
+                        {item.label}
+                      </span>
                       {typeof item.badge === "number" ? (
-                        <span className="ml-auto hidden rounded-full bg-zinc-700 px-2 text-xs font-semibold text-zinc-50 lg:inline-flex">
+                        <span
+                          className={cn(
+                            "ml-auto hidden rounded-full bg-zinc-700 px-2 text-xs font-semibold text-zinc-50 lg:inline-flex",
+                            reviewInProgress && "lg:hidden",
+                          )}
+                        >
                           {item.badge}
                         </span>
                       ) : null}

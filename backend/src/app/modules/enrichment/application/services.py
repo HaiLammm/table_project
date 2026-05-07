@@ -114,6 +114,7 @@ class GatewayEnrichmentService(EnrichmentServiceInterface):
                     jlpt_level=candidate.jlpt_level,
                     examples=list(candidate.examples),
                     source="llm",
+                    candidate_id=candidate.candidate_id,
                     preview_id=preview_id,
                     validated_against_jmdict=candidate.validated_against_jmdict,
                 )

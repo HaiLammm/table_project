@@ -1,7 +1,14 @@
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 from src.app.modules.srs.application.services import QueueStatsService
-from src.app.modules.srs.domain.entities import DueCardsPage, QueueStats, Review, SrsCard
+from src.app.modules.srs.domain.entities import (
+    DueCardsPage,
+    QueueStats,
+    Review,
+    SessionReviewRow,
+    SrsCard,
+)
 from src.app.modules.srs.domain.exceptions import DuplicateCardError
 from src.app.modules.srs.domain.interfaces import SrsCardRepository
 from src.app.modules.srs.domain.value_objects import QueueMode
@@ -59,6 +66,24 @@ class InMemorySrsCardRepository(SrsCardRepository):
 
     async def rollback(self) -> None:
         self.rollback_called = True
+
+    async def delete_review(self, review_id: int) -> None:
+        pass
+
+    async def get_last_review(self, card_id: int, user_id: int) -> Review | None:
+        return None
+
+    async def get_last_review_for_update(self, card_id: int, user_id: int) -> Review | None:
+        return None
+
+    async def update_card_with_delete_review(self, card: SrsCard, review_id: int) -> SrsCard:
+        return card
+
+    async def get_session_reviews(self, user_id: int, session_id: UUID) -> list[SessionReviewRow]:
+        return []
+
+    async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
+        return 0
 
     async def list_due_cards(
         self,

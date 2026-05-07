@@ -1,4 +1,3 @@
-import pytest
 
 from src.app.llm.schemas import EnrichmentResult, SingleEnrichmentRequest
 

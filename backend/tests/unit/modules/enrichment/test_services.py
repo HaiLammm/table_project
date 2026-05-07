@@ -1,11 +1,10 @@
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from src.app.modules.enrichment.application.services import (
     CorpusOnlyEnrichmentService,
     GatewayEnrichmentService,
 )
-from src.app.modules.enrichment.domain.interfaces import EnrichedTerm
 
 
 @pytest.fixture

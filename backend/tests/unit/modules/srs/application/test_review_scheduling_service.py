@@ -1,5 +1,5 @@
 from datetime import datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -9,6 +9,7 @@ from src.app.modules.srs.domain.entities import (
     QueueStats,
     Review,
     ReviewResult,
+    SessionReviewRow,
     SrsCard,
 )
 from src.app.modules.srs.domain.exceptions import DuplicateCardError
@@ -101,6 +102,24 @@ class InMemoryReviewRepository(SrsCardRepository):
 
     async def rollback(self) -> None:
         self.rollback_called = True
+
+    async def delete_review(self, review_id: int) -> None:
+        pass
+
+    async def get_last_review(self, card_id: int, user_id: int) -> Review | None:
+        return None
+
+    async def get_last_review_for_update(self, card_id: int, user_id: int) -> Review | None:
+        return None
+
+    async def update_card_with_delete_review(self, card: SrsCard, review_id: int) -> SrsCard:
+        return card
+
+    async def get_session_reviews(self, user_id: int, session_id: UUID) -> list[SessionReviewRow]:
+        return []
+
+    async def count_due_cards_for_date(self, user_id: int, date_end: datetime) -> int:
+        return 0
 
 
 async def test_review_scheduling_service_initializes_fsrs_card_defaults() -> None:

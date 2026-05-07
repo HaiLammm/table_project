@@ -177,21 +177,23 @@ export function VocabularyRequestPreview({ previewData, onBack }: VocabularyRequ
           {corpusTerms.map((term) => (
             <div
               key={`corpus-${term.term_id}`}
-              className="flex items-center gap-3 hover:bg-zinc-50 rounded-lg px-3 py-2"
+              className="flex items-start gap-3 hover:bg-zinc-50 rounded-lg px-3 py-2.5"
             >
               <input
                 type="checkbox"
                 checked={term.term_id !== null && selectedTermIds.has(term.term_id as number)}
                 onChange={() => term.term_id !== null && toggleCorpusTerm(term.term_id as number)}
                 disabled={term.term_id === null}
-                className="w-4 h-4 rounded border-zinc-300"
+                className="mt-0.5 w-4 h-4 shrink-0 rounded border-zinc-300"
               />
-              <div className="flex-1 flex items-center gap-2">
-                <span className="text-base font-medium text-text-primary">{term.term}</span>
-                {term.cefr_level && <Badge variant="outline">{term.cefr_level}</Badge>}
-                {term.jlpt_level && <Badge variant="outline">N{term.jlpt_level}</Badge>}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base font-medium text-text-primary">{term.term}</span>
+                  {term.cefr_level && <Badge variant="outline">{term.cefr_level}</Badge>}
+                  {term.jlpt_level && <Badge variant="outline">N{term.jlpt_level}</Badge>}
+                </div>
                 {term.definition && (
-                  <span className="text-sm text-text-secondary truncate">{term.definition}</span>
+                  <p className="mt-1 text-sm text-text-secondary leading-relaxed">{term.definition}</p>
                 )}
               </div>
             </div>
@@ -218,29 +220,38 @@ export function VocabularyRequestPreview({ previewData, onBack }: VocabularyRequ
           {llmTerms.map((term) => (
             <div
               key={`llm-${term.candidate_id}`}
-              className="flex items-center gap-3 hover:bg-zinc-50 rounded-lg px-3 py-2"
+              className="flex items-start gap-3 hover:bg-zinc-50 rounded-lg px-3 py-2.5"
             >
               <input
                 type="checkbox"
                 checked={term.candidate_id !== null && selectedCandidateIds.has(term.candidate_id as string)}
                 onChange={() => term.candidate_id !== null && toggleLlmTerm(term.candidate_id as string)}
                 disabled={term.candidate_id === null}
-                className="w-4 h-4 rounded border-zinc-300"
+                className="mt-0.5 w-4 h-4 shrink-0 rounded border-zinc-300"
               />
-              <div className="flex-1 flex items-center gap-2">
-                <span className="text-base font-medium text-text-primary">{term.term}</span>
-                {term.cefr_level && <Badge variant="outline">{term.cefr_level}</Badge>}
-                {term.jlpt_level && <Badge variant="outline">N{term.jlpt_level}</Badge>}
-                {term.source === "llm" && (
-                  <Badge variant="secondary" className="text-xs">AI Generated</Badge>
-                )}
-                {term.validated_against_jmdict && (
-                  <Badge variant="outline" className="text-xs text-green-600 border-green-600">
-                    JMdict Validated
-                  </Badge>
-                )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base font-medium text-text-primary">{term.term}</span>
+                  {term.cefr_level && <Badge variant="outline">{term.cefr_level}</Badge>}
+                  {term.jlpt_level && <Badge variant="outline">N{term.jlpt_level}</Badge>}
+                  {term.source === "llm" && (
+                    <Badge variant="secondary" className="text-xs">AI Generated</Badge>
+                  )}
+                  {term.validated_against_jmdict && (
+                    <Badge variant="outline" className="text-xs text-green-600 border-green-600">
+                      JMdict Validated
+                    </Badge>
+                  )}
+                </div>
                 {term.definition && (
-                  <span className="text-sm text-text-secondary truncate">{term.definition}</span>
+                  <p className="mt-1 text-sm text-text-secondary leading-relaxed">{term.definition}</p>
+                )}
+                {term.examples.length > 0 && (
+                  <ul className="mt-1.5 space-y-0.5">
+                    {term.examples.map((ex, i) => (
+                      <li key={i} className="text-xs text-text-tertiary italic">&ldquo;{ex}&rdquo;</li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </div>

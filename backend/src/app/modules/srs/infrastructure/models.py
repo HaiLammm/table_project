@@ -94,3 +94,11 @@ class SrsReviewModel(Base):
     )
     response_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     session_id: Mapped[PythonUUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    previous_fsrs_state: Mapped[dict[str, object] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
+    previous_stability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    previous_difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    previous_reps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    previous_lapses: Mapped[int | None] = mapped_column(Integer, nullable=True)

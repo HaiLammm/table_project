@@ -47,5 +47,14 @@ export interface ReviewResponse {
 }
 
 export interface SessionCard extends SrsCard {
-  term: VocabularyTerm | null;
+  term: VocabularyTerm | null
+}
+
+export interface SessionStatsResponse {
+  cards_reviewed: number
+  cards_graduated: number
+  cards_lapsed: number
+  lapsed_card_ids: number[]
+  tomorrow_due_count: number
+  tomorrow_estimated_minutes: number
 }

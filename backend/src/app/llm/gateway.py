@@ -10,6 +10,7 @@ from src.app.llm.providers.anthropic import AnthropicProvider
 from src.app.llm.providers.deepseek import DeepSeekProvider
 from src.app.llm.providers.google import GoogleProvider
 from src.app.llm.schemas import EnrichmentResult
+from src.app.core.config import settings
 from src.app.modules.dictionary.application.services import JMdictService
 
 
@@ -22,11 +23,13 @@ class LLMGateway:
         self._cache = EnrichmentCache(redis_client)
         self._cost_tracker = CostTracker(redis_client)
         self._jmdict = jmdict_service or JMdictService()
-        self._providers: list[tuple[LLMProvider, str]] = [
-            (AnthropicProvider(), "anthropic"),
-            (GoogleProvider(), "google"),
-            (DeepSeekProvider(), "deepseek"),
-        ]
+        self._providers: list[tuple[LLMProvider, str]] = []
+        if settings.anthropic_api_key:
+            self._providers.append((AnthropicProvider(), "anthropic"))
+        if settings.google_api_key:
+            self._providers.append((GoogleProvider(), "google"))
+        if settings.deepseek_api_key:
+            self._providers.append((DeepSeekProvider(), "deepseek"))
 
     def _build_enrichment_prompt(self, term: str, language: str, level: str) -> str:
         level_hint = f"CEFR {level}" if language == "en" else f"JLPT N{level}"
@@ -40,6 +43,46 @@ class LLMGateway:
             '{"term": "", "language": "", "definition": "", "ipa": null, "cefr_level": null, '
             '"jlpt_level": null, "examples": [], "related_terms": []}'
         )
+
+    def _build_batch_prompt(self, topic: str, language: str, level: str, count: int, exclude: list[str] | None = None) -> str:
+        level_hint = f"CEFR {level}" if language == "en" else f"JLPT N{level}"
+        exclude_clause = ""
+        if exclude:
+            exclude_clause = f" Do NOT include these terms: {', '.join(exclude)}."
+        return (
+            f"Generate exactly {count} different vocabulary terms related to the topic '{topic}' "
+            f"at {level_hint} level in {'English' if language == 'en' else 'Japanese'}. "
+            f"Each term must be a UNIQUE, DISTINCT word or phrase.{exclude_clause} "
+            "Return a JSON array where each element has: term, language, definition (1-2 sentences), "
+            "ipa (phonetic pronunciation), cefr_level (for English) or jlpt_level (for Japanese), "
+            "examples (array of 2-3 example sentences), and related_terms (array of up to 5 words). "
+            "Return ONLY a valid JSON array, no other text."
+        )
+
+    async def enrich_batch(
+        self, topic: str, language: str, level: str, count: int, exclude: list[str] | None = None,
+    ) -> list[EnrichmentResult]:
+        import json as _json
+
+        prompt = self._build_batch_prompt(topic, language, level, count, exclude)
+        raw = await self._call_with_fallback(3, topic, language, level, user_id=None, prompt_override=prompt)
+
+        items: list[dict[str, Any]] = []
+        if isinstance(raw, list):
+            items = raw
+        elif isinstance(raw, dict) and "terms" in raw:
+            items = raw["terms"]
+
+        seen_terms: set[str] = set()
+        results: list[EnrichmentResult] = []
+        for item in items:
+            term_val = item.get("term", "").strip().lower()
+            if not term_val or term_val in seen_terms:
+                continue
+            seen_terms.add(term_val)
+            results.append(self._build_enrichment_result(item, item.get("term", ""), language, level))
+
+        return results[:count]
 
     async def enrich_term(
         self, term: str, language: str, level: str, user_id: int | None = None
@@ -57,8 +100,9 @@ class LLMGateway:
         return result
 
     async def _call_with_fallback(
-        self, retry_count: int, term: str, language: str, level: str, user_id: int | None
-    ) -> dict[str, Any]:
+        self, retry_count: int, term: str, language: str, level: str, user_id: int | None,
+        prompt_override: str | None = None,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         last_error: Exception | None = None
 
         for provider, _provider_name in self._providers:
@@ -66,7 +110,7 @@ class LLMGateway:
                 if not await self._cost_tracker.is_under_cap(user_id):
                     raise RuntimeError(f"Daily cost cap exceeded for user {user_id}")
 
-                prompt = self._build_enrichment_prompt(term, language, level)
+                prompt = prompt_override or self._build_enrichment_prompt(term, language, level)
                 response = await provider.complete(prompt)
                 await self._cost_tracker.track_usage(
                     user_id,
@@ -79,6 +123,8 @@ class LLMGateway:
                 else:
                     parsed = response.raw_response.get("text", "{}")
 
+                if isinstance(parsed, list):
+                    return parsed
                 if isinstance(parsed, dict) and "error" not in parsed:
                     return parsed
 
@@ -134,16 +180,15 @@ class GatewayOrchestrator:
         if gap_count == 0:
             return "", []
 
-        candidates: list[EnrichmentResult] = []
-        for _ in range(gap_count):
-            result = await self._gateway.enrich_term(topic, language, level)
-            candidates.append(result)
+        candidates = await self._gateway.enrich_batch(topic, language, level, gap_count)
 
         preview_id = str(uuid.uuid4())
         preview_candidates = []
         for c in candidates:
             candidate_data = c.model_dump(mode="json")
-            candidate_data["candidate_id"] = f"llm_{uuid.uuid4().hex[:8]}"
+            cid = f"llm_{uuid.uuid4().hex[:8]}"
+            candidate_data["candidate_id"] = cid
+            c.candidate_id = cid
             preview_candidates.append(candidate_data)
 
         preview_data = {

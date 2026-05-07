@@ -73,34 +73,48 @@ async def confirm_vocabulary_request(
     skipped = 0
 
     for candidate_id in payload.selected_candidate_ids:
-        if preview_data:
-            candidates = preview_data.get("candidates", [])
-            matching = [c for c in candidates if c.get("candidate_id") == candidate_id]
-            if matching:
-                candidate = matching[0]
-                new_term = VocabularyTerm(
-                    term=candidate.get("term", ""),
-                    language=candidate.get("language", "en"),
-                    cefr_level=candidate.get("cefr_level"),
-                    jlpt_level=candidate.get("jlpt_level"),
+        if not preview_data:
+            skipped += 1
+            continue
+
+        candidates = preview_data.get("candidates", [])
+        matching = [c for c in candidates if c.get("candidate_id") == candidate_id]
+        if not matching:
+            skipped += 1
+            continue
+
+        candidate = matching[0]
+        term_text = candidate.get("term", "")
+        lang = candidate.get("language", "en")
+
+        existing = await repo.find_by_user_and_term(term_text, lang)
+        if existing:
+            skipped += 1
+            continue
+
+        try:
+            new_term = VocabularyTerm(
+                term=term_text,
+                language=lang,
+                cefr_level=candidate.get("cefr_level"),
+                jlpt_level=candidate.get("jlpt_level"),
+            )
+            created = await repo.create_term(new_term)
+            term_id = created.id
+
+            if term_id is not None and candidate.get("definition"):
+                definition = VocabularyDefinition(
+                    term_id=term_id,
+                    language=lang,
+                    definition=candidate.get("definition", ""),
+                    ipa=candidate.get("ipa"),
+                    examples=list(candidate.get("examples", [])),
+                    source="llm",
+                    validated_against_jmdict=candidate.get("validated_against_jmdict", False),
                 )
-                created = await repo.create_term(new_term)
-                term_id = created.id
-
-                if term_id is not None and candidate.get("definition"):
-                    definition = VocabularyDefinition(
-                        term_id=term_id,
-                        language=candidate.get("language", "en"),
-                        definition=candidate.get("definition", ""),
-                        ipa=candidate.get("ipa"),
-                        examples=list(candidate.get("examples", [])),
-                        source="llm",
-                        validated_against_jmdict=candidate.get("validated_against_jmdict", False),
-                    )
-                    await repo.create_definition(definition)
-                added += 1
-                continue
-
-        skipped += 1
+                await repo.create_definition(definition)
+            added += 1
+        except Exception:
+            skipped += 1
 
     return VocabularyRequestConfirmResponse(added_count=added, skipped_count=skipped)
